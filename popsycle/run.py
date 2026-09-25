@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 """
 run.py
-Executable to run the PopSyCLE pipeline.
+Executable to run the PopSyCLE pipeline
 """
 import inspect
 import os
@@ -11,6 +11,8 @@ from argparse import RawTextHelpFormatter
 import yaml
 import sys
 import time
+import json
+import datetime
 import glob
 from popsycle import synthetic
 from popsycle import utils
@@ -22,9 +24,10 @@ from popsycle.synthetic import _check_refine_binary_events
 from popsycle.synthetic import multiplicity_list
 from popsycle import binary_utils
 from popsycle import phot_utils
+import synthpop
 
 
-def _return_filename_dict(output_root, filter_dict, red_law, multiplicity = None):
+def _return_filename_dict(output_root, filter_dict, red_law = None, multiplicity = None):
     """
     Return the filenames of the files output by the pipeline
 
@@ -229,25 +232,15 @@ def generate_slurm_config_file(path_python='python', account='ulens',
     generate_config_file(config_filename, config)
 
 
-def generate_popsycle_config_file(radius_cut=2, obs_time=1000,
-                                  n_obs=101, theta_frac=2, blend_rad=0.75,
-                                  isochrones_dir='/Users/myself/popsycle_isochrones',
-                                  IFMR='Raithel18',
-                                  galaxia_galaxy_model_filename='/Users/myself/galaxia_galaxy_model_filename',
-                                  bin_edges_number=None,
-                                  BH_kick_speed_mean=50,
-                                  NS_kick_speed_mean=400,
-                                  filter_dict={'ubv':['R']},
-                                  red_law='Damineli16',
-                                  multiplicity=None,
-                                  bbh_frac = 'default',
-                                  binning = True,
-                                  config_filename='popsycle_config.yaml'):
+def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
     """
     Save popsycle configuration parameters from a dictionary into a yaml file
 
     Parameters
     ----------
+    galactic_model : str
+        Galaxia or SynthPop
+    
     radius_cut : float
         Initial radius cut, in ARCSECONDS.
 
@@ -328,38 +321,127 @@ def generate_popsycle_config_file(radius_cut=2, obs_time=1000,
         Name of the configuration file
         Default: popsycle_config.yaml
     """
+    if galactic_model == "synthpop":
+        radius_cut = kwargs.get("radius_cut", 2)
+        obs_time = kwargs.get("obs_time", 1000)
+        n_obs = kwargs.get("n_obs", 101)
+        theta_frac = kwargs.get("theta_frac", 2)
+        blend_rad = kwargs.get("blend_rad", 0.75)
+        if "IFMR" in kwargs:
+            print("Warning: IFMR will be overridden by SynthPop configuration")
+        bin_edges_number = kwargs.get("bin_edges_number", None)
+        if "BH_kick_speed_mean" in kwargs:
+            print("Warning: BH_kick_speed_mean will be overridden by SynthPop configuration")
+        if "NS_kick_speed_mean" in kwargs:
+            print("Warning: NS_kick_speed_mean will be overridden by SynthPop configuration")
+        filter_dict = kwargs.get("filter_dict", {'ubv':['R']})
+        if "red_law" in kwargs:
+            print("Warning: red_law will be overridden by SynthPop configuration")
+        red_law = ''
+        if "multiplicity" in kwargs:
+            print("Warning: multiplicity will be overridden by SynthPop configuration")
+        bbh_frac = kwargs.get("bbh_frac", 'default')
+        binning = kwargs.get("binning", True)
+        n_proc = kwargs.get("n_proc", 1)
+        config_filename = kwargs.get("config_filename", 'synthpopsycle_config.yaml')
+        synthpop_dict = kwargs.get("synthpop_dict", {})
 
-    if bin_edges_number is None:
-        bin_edges_number = 'None'
-    if isochrones_dir == '/Users/myself/popsycle_isochrones':
-        raise Exception("'isochrones_dir' must be set by the user. "
-                        "The default value is only an example.")
-    if galaxia_galaxy_model_filename == '/Users/myself/galaxia_galaxy_model_filename':
-        raise Exception("'galaxia_galaxy_model_filename' must be set by the user. "
-                        "The default value is only an example.")
+        # Initiate SynthPop model to obtain SynthPop parameters
+        if "config_file" in synthpop_dict:
+            synth_config_file = synthpop_dict['config_file']
+            synthpop_dict.pop('config_file', None)
+            mod = synthpop.SynthPop(synth_config_file, **synthpop_dict)
+        else:
+            synth_config_file = "popsycle_multiples_defaults.synthpop_conf"
+            mod = synthpop.SynthPop(synth_config_file, **synthpop_dict)
 
-    if multiplicity is None:
-        multiplicity = 'None'
-    if multiplicity not in multiplicity_list:
-        raise Exception('multiplicity must be None or "ResolvedDK"')
+        if "output_location" in synthpop_dict:
+            print("Warning: output_location will be overridden by config_file path.")
+        if os.path.isfile(config_filename):
+            synthpop_dict['output_location'] = os.path.abspath(os.path.dirname(config_filename))
+        else:
+            synthpop_dict['output_location'] = os.getcwd()
+        
+        multiplicity = mod.parms.multiplicity_kwargs
+        IFMR = mod.parms.ifmr_kwargs
+        BH_kick_speed_mean = mod.parms.ifmr_kwargs
+        
+        if bin_edges_number is None:
+            bin_edges_number = 'None'
+            
+        if multiplicity is None or multiplicity == 'null':
+            multiplicity = 'None'
+        else:
+            multiplicity = 'ResolvedDK'
 
-    config = {'radius_cut': radius_cut,
-              'obs_time': obs_time,
-              'n_obs': n_obs,
-              'theta_frac': theta_frac,
-              'blend_rad': blend_rad,
-              'isochrones_dir': os.path.abspath(isochrones_dir),
-              'IFMR' : IFMR,
-              'galaxia_galaxy_model_filename': os.path.abspath(galaxia_galaxy_model_filename),
-              'bin_edges_number': bin_edges_number,
-              'BH_kick_speed_mean': BH_kick_speed_mean,
-              'NS_kick_speed_mean': NS_kick_speed_mean,
-              'filter_dict': filter_dict,
-              'red_law': red_law,
-              'multiplicity': multiplicity,
-              'bbh_frac' : bbh_frac,
-              'binning':binning}
-    generate_config_file(config_filename, config)
+        config = {'radius_cut': radius_cut,
+                  'obs_time': obs_time,
+                  'n_obs': n_obs,
+                  'theta_frac': theta_frac,
+                  'blend_rad': blend_rad,
+                  'bin_edges_number': bin_edges_number,
+                  'filter_dict': filter_dict,
+                  'n_proc': n_proc,
+                  'red_law': red_law,
+                  'multiplicity': multiplicity,
+                  'binning' : binning,
+                 'synthpop_dict' : synthpop_dict}
+        
+        generate_config_file(config_filename, config)
+        
+
+    if galactic_model == "galaxia":
+        radius_cut = kwargs.get("radius_cut", 2)
+        obs_time = kwargs.get("obs_time", 1000)
+        n_obs = kwargs.get("n_obs", 101)
+        theta_frac = kwargs.get("theta_frac", 2)
+        blend_rad = kwargs.get("blend_rad", 0.75)
+        isochrones_dir = kwargs.get("isochrones_dir", '/Users/myself/popsycle_isochrones')
+        galaxia_galaxy_model_filename = kwargs.get("galaxia_galaxy_model_filename", '/Users/myself/galaxia_galaxy_model_filename')
+        IFMR = kwargs.get("IFMR", 'Raithel18')
+        bin_edges_number = kwargs.get("bin_edges_number", None)
+        bin_edges_number = kwargs.get("bin_edges_number", None)
+        BH_kick_speed_mean = kwargs.get("BH_kick_speed_mean", 50)
+        NS_kick_speed_mean = kwargs.get("NS_kick_speed_mean", 400)
+        filter_dict = kwargs.get("filter_dict", {'ubv':['R']})
+        red_law = kwargs.get("red_law", 'Damineli16')
+        multiplicity = kwargs.get("multiplicity", None)
+        bbh_frac = kwargs.get("bbh_frac", 'default')
+        binning = kwargs.get("binning", True)
+        config_filename = kwargs.get("config_filename", 'popsycle_config.yaml')
+
+        if bin_edges_number is None:
+            bin_edges_number = 'None'
+        if isochrones_dir == '/Users/myself/popsycle_isochrones':
+            raise Exception("'isochrones_dir' must be set by the user. "
+                            "The default value is only an example.")
+        if galaxia_galaxy_model_filename == '/Users/myself/galaxia_galaxy_model_filename':
+            raise Exception("'galaxia_galaxy_model_filename' must be set by the user. "
+                            "The default value is only an example.")
+
+        if multiplicity is None:
+            multiplicity = 'None'
+    
+        if multiplicity not in multiplicity_list:
+            raise Exception('multiplicity must be None or "ResolvedDK"')
+    
+        config = {'radius_cut': radius_cut,
+                  'obs_time': obs_time,
+                  'n_obs': n_obs,
+                  'theta_frac': theta_frac,
+                  'blend_rad': blend_rad,
+                  'isochrones_dir': os.path.abspath(isochrones_dir),
+                  'IFMR' : IFMR,
+                  'galaxia_galaxy_model_filename': os.path.abspath(galaxia_galaxy_model_filename),
+                  'bin_edges_number': bin_edges_number,
+                  'BH_kick_speed_mean': BH_kick_speed_mean,
+                  'NS_kick_speed_mean': NS_kick_speed_mean,
+                  'filter_dict': filter_dict,
+                  'red_law': red_law,
+                  'multiplicity': multiplicity,
+                  'bbh_frac' : bbh_frac,
+                  'binning':binning}
+        generate_config_file(config_filename, config)
 
 
 def generate_config_file(config_filename, config):
@@ -486,6 +568,7 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
                           walltime,
                           n_cores_perform_pop_syn = 1,
                           n_cores_calc_events = 1,
+                          n_cores_synthpop = 1,
                           n_cores_refine_binary_events = 1,
                           multi_proc_refine_binary_events = True,
                           jobname='default',
@@ -495,6 +578,7 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
                           skip_make_bhs_single = True,
                           skip_calc_events=False, skip_refine_events=False,
                           skip_refine_binary_events=False,
+                          run_synthpop=False,
                           verbose = 0):
     """
     Generates (and possibly submits) the slurm script that
@@ -655,6 +739,9 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
     popsycle_config_filename = os.path.abspath(popsycle_config_filename)
     popsycle_config = load_config_file(popsycle_config_filename)
 
+    multiplicity = multiplicity_list[popsycle_config['multiplicity']]
+    if multiplicity == None:
+        multiplicity = 'None'
     # Load multiplicity from popsycle_config
     multiplicity = multiplicity_list[popsycle_config['multiplicity']]
     # Additional multiplicity classes may require a different method of instantiation
@@ -668,8 +755,9 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
         hdf5_file_comp = None
 
     # Dont run make_bhs_single() if the bbh_frac is left default
-    if popsycle_config['bbh_frac'] == 'default':
-        skip_make_bhs_single = True
+    if 'bbh_frac' in popsycle_config:
+        if popsycle_config['bbh_frac'] == 'default':
+            skip_make_bhs_single = True
 
     # Load the slurm configuration file
     slurm_config = load_config_file(slurm_config_filename)
@@ -688,11 +776,65 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
         additional_photometric_systems = None
     
     # Return the dictionary containing PopSyCLE output filenames
-    filename_dict = _return_filename_dict(output_root, popsycle_config['filter_dict'], popsycle_config['red_law'], multiplicity)
+    if not run_synthpop:
+        filename_dict = _return_filename_dict(output_root, popsycle_config['filter_dict'], popsycle_config['red_law'], multiplicity)
+    else:
+        if not skip_perform_pop_syn:
+            skip_perform_pop_syn = True
+            print('Warning: perform_pop_syn cannot be used with SynthPop.')
+        if not skip_make_bhs_single:
+            skip_make_bhs_single = True
+            print('Warning: make_bhs_single cannot be used with SynthPop.')
+        if not skip_galaxia:
+            skip_galaxia = True
+            print('Warning: Using SynthPop. Galaxia will not be run.')
+        skip_make_bhs_single = True
+
+        synthpop_dict = popsycle_config['synthpop_dict']
+        
+        if 'config_file' in synthpop_dict:
+            synth_config_file = synthpop_dict['config_filename']
+        else:
+            synth_config_file = "synthpop/synthpop/config_files/popsycle_multiples_defaults.synthpop_conf"
+        
+            synthpop_dict['output_filename_pattern'] = "{name_for_output}_l{l_deg:.3f}_b{b_deg:.3f}"  # Force naming convention
+    
+            # Get output name
+            file_keys = {
+                "time": datetime.datetime.now().time(),
+                "date": datetime.datetime.now().date(),
+                "l_deg": longitude,
+                "b_deg": latitude,
+                "name_for_output": output_root,
+                }
+            scale_factor_ending = ""
+        
+            name_for_output = f"{synthpop_dict['output_filename_pattern'].format(**file_keys) + scale_factor_ending}"
+        
+            if 'output_location' in synthpop_dict:
+                print("Warning: path_run will be overridden by output_location")
+                path_run = synthpop_dict['output_location']
+            
+            name_for_output = f'{path_run}/{name_for_output}'
+            
+            proc_num = n_cores_synthpop
+            seed = seed
+            hdf5_file_comp = '%s_companions.h5' % name_for_output
+    
+            synthetic._check_run_synthpop(synth_config_file, name_for_output, longitude, latitude, field_shape='box', surveyArea=area, field_scale_unit='deg')
+    
+            hdf5_file_comp = '%s_companions.h5' % name_for_output
+
+            # Return the dictionary containing PopSyCLE output filenames
+            filename_dict = _return_filename_dict(name_for_output, popsycle_config['filter_dict'], popsycle_config['red_law'])
+        
+            filename_dict['hdf5_companions_filename'] = '%s_companions.h5' % name_for_output
+            filename_dict['companions_filename'] = '%s_events_companions.fits' % name_for_output
 
     # Check pipeline stages for valid inputs
     _check_slurm_config(slurm_config, walltime)
     if not skip_galaxia:
+        
         _check_run_galaxia(output_root=output_root,
                            longitude=longitude,
                            latitude=latitude,
@@ -728,6 +870,8 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
                            overwrite=overwrite,
                            hdf5_file_comp=hdf5_file_comp)
     if not skip_refine_events:
+        if run_synthpop:
+            popsycle_config['red_law'] = "Damineli16" # synthpop red_law
         _check_refine_events(input_root='test',
                              filter_dict=popsycle_config['filter_dict'],
                              red_law=popsycle_config['red_law'],
@@ -735,7 +879,7 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
                              legacy=False,
                              output_file='default',
                              hdf5_file_comp=hdf5_file_comp,
-                             seed=seed)
+                             seed=seed, )
     if not skip_refine_binary_events:
         # refined_events_filename defaults to using multi_filt, 
         # unless popsycle_config['filter_dict'] contains only one filter
@@ -754,9 +898,9 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
 
 
     # Make a run directory for the PopSyCLE output
-    path_run = os.path.abspath(path_run)
-    if not os.path.exists(path_run):
-        os.makedirs(path_run)
+    path_run_abs = os.path.abspath(path_run)
+    if not os.path.exists(path_run_abs):
+        os.makedirs(path_run_abs)
 
     # Write a field configuration file to disk in path_run
     config = {'longitude': longitude,
@@ -764,6 +908,9 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
               'area': area}
     field_config_filename = '{0}/{1}_field_config.yaml'.format(path_run,
                                                                output_root)
+
+    field_config_filename = os.path.abspath(field_config_filename)
+                              
     generate_config_file(field_config_filename, config)
 
     # Create a slurm jobname base that all stages will be appended to
@@ -893,6 +1040,12 @@ exit $exitcode
     if skip_refine_binary_events:
         optional_cmds += '--skip-refine-binary-events '
 
+    if n_cores_synthpop != 1:
+        optional_cmds += '--n-cores-synthpop={} '.format(n_cores_synthpop)
+
+    if run_synthpop:
+        optional_cmds += '--run-synthpop '
+
     # Populate the mpi_template specified inputs
     job_script = slurm_template.format(**locals())
 
@@ -937,7 +1090,7 @@ exit $exitcode
                 slurm_jobid = None
 
             return slurm_jobid
-
+            
 
 def tar_run_results(extension_list=['ebf', 'fits', 'h5', 'log', 'out', 'sh', 'txt', 'yaml'],
                     include_bin_phot=True,
@@ -1011,6 +1164,7 @@ def run(output_root='root0',
         popsycle_config_filename='popsycle_config.yaml',
         n_cores_perform_pop_syn=1,
         n_cores_calc_events=1,
+        n_cores_synthpop=1,
         n_cores_refine_binary_events=1,
         multi_proc_refine_binary_events=True,
         verbose=0,
@@ -1021,9 +1175,12 @@ def run(output_root='root0',
         skip_make_bhs_single=True,
         skip_calc_events=False,
         skip_refine_events=False,
-        skip_refine_binary_events=False):
+        skip_refine_binary_events=False,
+        run_synthpop=False):
 
     t0 = time.time()
+
+    original_output_root = output_root
 
     # Check for field config file. Exit if not present.
     if not os.path.exists(field_config_filename):
@@ -1076,10 +1233,66 @@ def run(output_root='root0',
     else:
         hdf5_file_comp = None
 
-    # Return the dictionary containing PopSyCLE output filenames
-    filename_dict = _return_filename_dict(output_root, popsycle_config['filter_dict'], popsycle_config['red_law'], multiplicity)
-
     # Check pipeline stages for valid inputs
+    if run_synthpop:
+        galactic_model_code = "synthpop"
+        
+        if not skip_perform_pop_syn:
+            skip_perform_pop_syn = True
+            print('Warning: perform_pop_syn cannot be used with SynthPop.')
+        if not skip_make_bhs_single:
+            skip_make_bhs_single = True
+            print('Warning: make_bhs_single cannot be used with SynthPop.')
+        if not skip_galaxia:
+            skip_galaxia = True
+            print('Warning: Using SynthPop. Galaxia will not be run.')
+        skip_make_bhs_single = True
+
+        synthpop_dict = popsycle_config['synthpop_dict']
+        
+        if 'config_file' in synthpop_dict:
+            synth_config_file = synthpop_dict['config_filename']
+        else:
+            synth_config_file = "synthpop/synthpop/config_files/popsycle_multiples_defaults.synthpop_conf"
+        
+        synthpop_dict['output_filename_pattern'] = "{name_for_output}_l{l_deg:.3f}_b{b_deg:.3f}"  # Force naming convention
+
+        # Get output name
+        file_keys = {
+            "time": datetime.datetime.now().time(),
+            "date": datetime.datetime.now().date(),
+            "l_deg": field_config['longitude'],
+            "b_deg": field_config['latitude'],
+            "name_for_output": output_root,
+            }
+        scale_factor_ending = ""
+    
+        name_for_output = f"{synthpop_dict['output_filename_pattern'].format(**file_keys) + scale_factor_ending}"
+    
+        if 'output_location' in synthpop_dict:
+            synthpop_dict['output_location'] = os.path.relpath(synthpop_dict['output_location'])
+            output_location = synthpop_dict['output_location']
+            name_for_output = f'{output_location}/{name_for_output}'
+        
+        longitude = field_config['longitude'],
+        latitude = field_config['latitude'],
+        area = field_config['area']
+        proc_num = n_cores_synthpop
+        seed = seed
+
+        synthetic._check_run_synthpop(synth_config_file, name_for_output, float(longitude[0]), float(latitude[0]), field_shape='box', surveyArea=float(area), field_scale_unit='deg')
+
+        hdf5_file_comp = '%s_companions.h5' % name_for_output
+
+        # Return the dictionary containing PopSyCLE output filenames
+        filename_dict = _return_filename_dict(name_for_output, popsycle_config['filter_dict'], popsycle_config['red_law'])
+
+        filename_dict['hdf5_companions_filename'] = '%s_companions.h5' % name_for_output
+        filename_dict['companions_filename'] = '%s_events_companions.fits' % name_for_output
+
+    else:
+        filename_dict = _return_filename_dict(output_root, popsycle_config['filter_dict'], popsycle_config['red_law'], multiplicity)
+
     if not skip_galaxia:
         _check_run_galaxia(output_root=output_root,
                            longitude=field_config['longitude'],
@@ -1114,6 +1327,8 @@ def run(output_root='root0',
                            overwrite=overwrite,
                            hdf5_file_comp=hdf5_file_comp)
     if not skip_refine_events:
+        if run_synthpop:
+            popsycle_config['red_law'] = "Damineli16" # default red_law for check refine_events
         _check_refine_events(input_root=output_root,
                              filter_dict=popsycle_config['filter_dict'],
                              red_law=popsycle_config['red_law'],
@@ -1139,12 +1354,16 @@ def run(output_root='root0',
                                     phot_dir=phot_dir, multi_proc=multi_proc_refine_binary_events)
 
     if not skip_galaxia:
+        galactic_model_code = "galaxia"
         # Remove Galaxia output if already exists and overwrite=True
         if _check_for_output(filename_dict['ebf_filename'],
                              overwrite):
             t1 = time.time()
             print('run.py runtime : {0:f} s'.format(t1 - t0))
             sys.exit(1)
+
+        if os.path.isabs(output_root):
+            output_root = os.path.splitdrive(output_root)[1].lstrip(os.sep)
 
         # Run Galaxia
         print('-- Running Galaxia')
@@ -1154,6 +1373,15 @@ def run(output_root='root0',
                               area=field_config['area'],
                               galaxia_galaxy_model_filename=popsycle_config['galaxia_galaxy_model_filename'],
                               seed=seed)
+
+    if run_synthpop:
+        # Run SynthPop
+        synthetic.run_synthpop(output_root,
+                          longitude=field_config['longitude'],
+                          latitude=field_config['latitude'],
+                          area=field_config['area'], proc_num=n_cores_synthpop, seed=seed, **synthpop_dict)
+
+        output_root = name_for_output  # Switch to path for the rest of the run
 
     if not skip_perform_pop_syn:
         # Remove perform_pop_syn output if already exists and overwrite=True
@@ -1199,8 +1427,6 @@ def run(output_root='root0',
                 popsycle_config['bbh_frac'],
                 symlink_aux_files = False,
                 phots = phots)
-            
-            
 
     if not skip_calc_events:
         # Remove calc_events output if already exists and overwrite=True
@@ -1255,7 +1481,8 @@ def run(output_root='root0',
                                 overwrite=overwrite,
                                 output_file='default',
                                 hdf5_file_comp=hdf5_file_comp,
-                                seed=seed)
+                                seed=seed,
+                                galactic_model_code = galactic_model_code)
 
     if multiplicity is not None and not skip_refine_binary_events:
         if not os.path.exists(filename_dict['refined_events_filename']):
@@ -1358,13 +1585,24 @@ def main():
     optional.add_argument('--skip-refine-binary-events',
                           help="Skip running refine_binary_events.",
                           action='store_true')
+    optional.add_argument('--run-synthpop',
+                          help="Uses SynthPop instead of Galaxia.",
+                          action='store_true')
+    optional.add_argument('--n-cores-synthpop', type=int,
+                          help="Number of processes to run within SynthPop.", 
+                          default=1)
+    """optional.add_argument('--synthpop-dict',
+                          help="Arguments for SynthPop.",
+                          type=json.loads, default={})"""
     args = parser.parse_args()
 
+    
     run(output_root=args.output_root,
         field_config_filename=args.field_config_filename,
         popsycle_config_filename=args.popsycle_config_filename,
         n_cores_perform_pop_syn=args.n_cores_perform_pop_syn,
         n_cores_calc_events=args.n_cores_calc_events,
+        n_cores_synthpop=args.n_cores_synthpop,
         n_cores_refine_binary_events=args.n_cores_refine_binary_events,
         multi_proc_refine_binary_events=args.multi_proc_refine_binary_events,
         seed=args.seed,
@@ -1374,7 +1612,8 @@ def main():
         skip_make_bhs_single=args.skip_make_bhs_single,
         skip_calc_events=args.skip_calc_events,
         skip_refine_events=args.skip_refine_events,
-        skip_refine_binary_events=args.skip_refine_binary_events)
+        skip_refine_binary_events=args.skip_refine_binary_events,
+        run_synthpop=args.run_synthpop)
 
 
 if __name__ == '__main__':

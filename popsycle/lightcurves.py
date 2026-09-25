@@ -605,7 +605,7 @@ def get_bsbl_lightcurve_parameters(events, companions, comp_idx_L, comp_idx_S, p
     eS = companions['e'][comp_idx_S]
     tpS = companions['tp'][comp_idx_S]
     aS = 10**(companions['log_a'][comp_idx_S])
-    if '%s_%s_L' % (photometric_system, filter_name) in event:
+    if '%s_%s_L' % (photometric_system, filter_name) in event:  # SynthPop apparent magnitude implementation
         dmag_Lp_Ls = [event['%s_%s_L' % (photometric_system, filter_name)] - companions['m_%s_%s' % (photometric_system, filter_name)][comp_idx_L]]
     else:
         dmag_Lp_Ls = [event['%s_%s_app_L' % (photometric_system, filter_name)] - companions['m_%s_%s' % (photometric_system, filter_name)][comp_idx_L]]

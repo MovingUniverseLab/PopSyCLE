@@ -451,10 +451,10 @@ def _check_run_synthpop(config_file, name_for_output="default",
 
     if l_deg is not None:
         if not isinstance(l_deg, (float,int)):
-                raise Exception('l (%s) must be a float.' % str(l))
+                raise Exception('l (%s) must be a float.' % str(l_deg))
     if b_deg is not None:
         if not isinstance(b_deg, (float,int)):
-                raise Exception('b (%s) must be a float.' % str(b))
+                raise Exception('b (%s) must be a float.' % str(b_deg))
     if surveyArea is not None:
         if not isinstance(surveyArea, (float,int)):
                 raise Exception('surveyArea (%s) must be a float.' % str(surveyArea))
@@ -532,7 +532,7 @@ def write_synthpop_params(mod, config_file,
 
         name_for_output = mod.parms.output_filename_pattern.format(**file_keys) + scale_factor_ending
 
-    synthpop_param_fname = '%s_psc_synthpop_params.txt' % name_for_output
+    synthpop_param_fname = '%s_synthpop_params.txt' % name_for_output
 
     if 'output_location' in kwargs:
         output_location = kwargs['output_location']
@@ -541,7 +541,7 @@ def write_synthpop_params(mod, config_file,
 
     synthpop_param_loc = os.path.join(output_location, synthpop_param_fname)
 
-    if not os.path.isdir(output_location):
+    if not os.path.isdir(output_location) and output_location != '':
         os.makedirs(output_location)
 
     print('** Generating %s **' % synthpop_param_fname)
@@ -614,9 +614,9 @@ def process_location_popsycle(
             else:
                 scale_factor_ending = ""
     
-            name_for_output = f"{model.parms.output_filename_pattern.format(**file_keys) + scale_factor_ending}_psc"
+            name_for_output = f"{model.parms.output_filename_pattern.format(**file_keys) + scale_factor_ending}"
         else:
-            name_for_output = f"{model.get_filename(l_deg, b_deg)}_psc"
+            name_for_output = f"{model.get_filename(l_deg, b_deg)}"
 
         if 'output_location' in kwargs:
             output_location = kwargs['output_location']
@@ -630,11 +630,18 @@ def process_location_popsycle(
         if field_scale_unit=='sr':
             surveyArea *= (180/np.pi)**2
 
-        popsycle_list = {}
-        popsycle_bin_list = {}
-
         # Calculate bin edges
         _, lat_bin_edges, long_bin_edges = _get_bin_edges_box(latitude, longitude, surveyArea, bin_edges_number)
+
+        # Create h5files
+        if model.parms.multiplicity_kwargs != None:
+            with h5py.File(f"{output_root}_companions.h5", 'w') as h5file:
+                h5file['lat_bin_edges'] = lat_bin_edges
+                h5file['long_bin_edges'] = long_bin_edges
+
+        with h5py.File(f"{output_root}.h5", 'w') as h5file:
+            h5file['lat_bin_edges'] = lat_bin_edges
+            h5file['long_bin_edges'] = long_bin_edges
 
         # Run field generation for each subfield
         index = 0
@@ -655,16 +662,19 @@ def process_location_popsycle(
 
                 popsycle_df['obj_id'] = popsycle_df['obj_id'] + index
                 popsycle_bin_df['system_idx'] = popsycle_bin_df['system_idx'] + index
-                
-                popsycle_list[f"l{str(i)}b{str(j)}"] = popsycle_df
-                popsycle_bin_list[f"l{str(i)}b{str(j)}"]= popsycle_bin_df
-                
 
                 if len(popsycle_df)>0:
                     index = popsycle_df['obj_id'].max() + 1  # Keeps track of the number of stars in the dataframe
 
-                popsycle_list[f"l{str(i)}b{str(j)}"] = popsycle_df
-                popsycle_bin_list[f"l{str(i)}b{str(j)}"]= popsycle_bin_df
+                popsycle_dataset = {}
+                popsycle_bin_dataset = {}
+                popsycle_dataset[f"l{str(i)}b{str(j)}"] = popsycle_df
+                popsycle_bin_dataset[f"l{str(i)}b{str(j)}"]=popsycle_bin_df
+
+                if model.parms.multiplicity_kwargs != None:
+                    _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, popsycle_bin_dataset, f"{output_root}_companions")
+        
+                _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, popsycle_dataset, output_root)
             
 
         if os.path.exists(output_root + '_synthpop_params.txt'):
@@ -676,19 +686,6 @@ def process_location_popsycle(
                 params_file.write(f"seed {model.parms.random_seed}\n")
                 params_file.write(lines)
 
-        if model.parms.multiplicity_kwargs != None:
-        # Write h5files
-            with h5py.File(f"{output_root}_companions.h5", 'w') as h5file:
-                h5file['lat_bin_edges'] = lat_bin_edges
-                h5file['long_bin_edges'] = long_bin_edges
-    
-            _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, popsycle_bin_list, f"{output_root}_companions")
-        
-        with h5py.File(f"{output_root}.h5", 'w') as h5file:
-            h5file['lat_bin_edges'] = lat_bin_edges
-            h5file['long_bin_edges'] = long_bin_edges
-
-        _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, popsycle_list, output_root)
         logger.info(f"PopSyCLE formatted output saved in {output_root}.h5")
 
         return
@@ -756,11 +753,46 @@ def process_location_popsycle_parallel(
         if field_scale_unit=='sr':
             surveyArea *= (180/np.pi)**2
 
-        popsycle_list = {}
-        popsycle_bin_list = {}
+        model = synthpop.SynthPop(config_file, binning_procedure = True, *args, **kwargs) # Reference model for output parameters
+
+        # Get output parameters
+        if 'output_filename_pattern' in kwargs or model.parms.output_filename_pattern:
+            file_keys = {
+                "time": datetime.datetime.now().time(),
+                "date": datetime.datetime.now().date(),
+                "l_deg": l_deg,
+                "b_deg": b_deg,
+                "model_name": model.parms.model_name,
+                "name_for_output": name_for_output,
+                }
+            if model.parms.scale_factor != 1:
+                scale_factor_ending = f"_scaled{model.parms.scale_factor:.3f}"
+            else:
+                scale_factor_ending = ""
+    
+            name_for_output = f"{model.parms.output_filename_pattern.format(**file_keys) + scale_factor_ending}"
+        else:
+            name_for_output = f"{model.get_filename(l_deg, b_deg)}"
+    
+        if 'output_location' in kwargs:
+            output_location = kwargs['output_location']
+        else:
+            output_location = model.parms.output_location
+    
+        output_root = os.path.join(output_location, name_for_output)
 
         # Calculate bin edges
         _, lat_bin_edges, long_bin_edges = _get_bin_edges_box(latitude, longitude, surveyArea, bin_edges_number)
+
+        # Write h5files
+        if model.parms.multiplicity_kwargs != None:
+            with h5py.File(f"{output_root}_companions.h5", 'w') as h5file:
+                h5file['lat_bin_edges'] = lat_bin_edges
+                h5file['long_bin_edges'] = long_bin_edges
+
+        with h5py.File(f"{output_root}.h5", 'w') as h5file:
+            h5file['lat_bin_edges'] = lat_bin_edges
+            h5file['long_bin_edges'] = long_bin_edges
 
         # Multiprocessing arguments
         index = 0
@@ -781,34 +813,6 @@ def process_location_popsycle_parallel(
                 
                 edge_pairs.append(coords_tuple)
 
-        model = synthpop.SynthPop(config_file, binning_procedure = True, *args, **kwargs) # Reference model for output parameters
-
-        # Get output parameters
-        if 'output_filename_pattern' in kwargs or model.parms.output_filename_pattern:
-            file_keys = {
-                "time": datetime.datetime.now().time(),
-                "date": datetime.datetime.now().date(),
-                "l_deg": l_deg,
-                "b_deg": b_deg,
-                "model_name": model.parms.model_name,
-                "name_for_output": name_for_output,
-                }
-            if model.parms.scale_factor != 1:
-                scale_factor_ending = f"_scaled{model.parms.scale_factor:.3f}"
-            else:
-                scale_factor_ending = ""
-    
-            name_for_output = f"{model.parms.output_filename_pattern.format(**file_keys) + scale_factor_ending}_psc"
-        else:
-            name_for_output = f"{model.get_filename(l_deg, b_deg)}_psc"
-    
-        if 'output_location' in kwargs:
-            output_location = kwargs['output_location']
-        else:
-            output_location = model.parms.output_location
-    
-        output_root = os.path.join(output_location, name_for_output)
-
         pool = Pool(processes=proc_num, initializer=init_model, initargs=(config_file, args, kwargs,)) # Open multiprocessing pool
         
         results = pool.starmap_async(process_location_popsycle_worker, edge_pairs)  # Run field generation
@@ -816,8 +820,16 @@ def process_location_popsycle_parallel(
         results = results.get()
 
         for set in results:
-            popsycle_list[f"l{str(set[4])}b{str(set[5])}"] = set[0]
-            popsycle_bin_list[f"l{str(set[4])}b{str(set[5])}"]= set[1]
+            popsycle_list = {}
+            popsycle_bin_list = {}
+            
+            popsycle_list[f"l{str(set[4])}b{str(set[5])}"] = set[0]   # Object dataframe
+            popsycle_bin_list[f"l{str(set[4])}b{str(set[5])}"]= set[1]  # Companions dataframe
+
+            if model.parms.multiplicity_kwargs != None:
+                _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, popsycle_bin_list, f"{output_root}_companions")
+                
+            _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, popsycle_list, output_root)
             
         if os.path.exists(output_root + '_synthpop_params.txt'):
                 with open(output_root + '_synthpop_params.txt', 'r') as params_file:
@@ -828,20 +840,6 @@ def process_location_popsycle_parallel(
                 params_file.write(f"seed {model.parms.random_seed}\n")
                 params_file.write(lines)
 
-        if model.parms.multiplicity_kwargs != None:
-        
-        # Write h5files
-            with h5py.File(f"{output_root}_companions.h5", 'w') as h5file:
-                h5file['lat_bin_edges'] = lat_bin_edges
-                h5file['long_bin_edges'] = long_bin_edges
-    
-            _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, popsycle_bin_list, f"{output_root}_companions")
-        
-        with h5py.File(f"{output_root}.h5", 'w') as h5file:
-            h5file['lat_bin_edges'] = lat_bin_edges
-            h5file['long_bin_edges'] = long_bin_edges
-
-        _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, popsycle_list, output_root)
         logger.info(f"PopSyCLE formatted output saved in {output_root}.h5")
 
         return
@@ -2686,50 +2684,100 @@ def _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, obj_arr, output_root, comp
     """ for i in range(len(obj_arr)):
         dataframe = obj_arr[i]
         print(dataframe) """
+
+    if len(obj_arr) > 1:
         
-    for ll in range(len(long_bin_edges) - 1):
-        for bb in range(len(lat_bin_edges) - 1):
-            # Open our HDF5 file for reading and appending.
-            # Create as necessary.
-            hf = h5py.File(output_root + '.h5', 'r+')
+        for ll in range(len(long_bin_edges) - 1):
+            for bb in range(len(lat_bin_edges) - 1):
+                # Open our HDF5 file for reading and appending.
+                # Create as necessary.
+                hf = h5py.File(output_root + '.h5', 'r+')
+        
+                # HDF5 dataset name
+                dset_name = 'l' + str(ll) + 'b' + str(bb)
+        
+                # Create data set if needed. Start with 0 stars in the dataset.
+                if dset_name not in hf:
+                    dataset = hf.create_dataset(dset_name, shape=(0,),
+                                                chunks=(1e4,),
+                                                maxshape=(None,),
+                                                dtype=compound_dtype)
+                else:
+                    dataset = hf[dset_name]
+        
+                ##########
+                # Binning the stars and/or compact objects or companions
+                ##########
+                if obj_arr is not None:
+                    dataframe = obj_arr[dset_name]
+                    #id_lb = np.where((dataframe['glat'] != np.nan))[0]
+                    
+                    if len(dataframe) == 0:
+                        continue
+                    
+                    # Loop over the obj_arr and add all columns
+                    # (matching id_lb) into save_data
+                    save_data = np.empty(len(dataframe), dtype=compound_dtype)
+        
+                    if companion_obj_arr is None:
+                        for colname in dataframe:
+                            save_data[colname] = dataframe[colname].to_numpy()
+                    # If making a companion hd5f file, finds corresponding companions and save them
+                    else:
+        #                    companion_id_lb = [np.where(companion_obj_arr['system_idx'] == ii)[0] for ii in dataframe['obj_id'][id_lb]]
+        #                    companion_id_lb = list(np.concatenate(companion_id_lb).ravel()) # Simplifies datastructure
+                        if len(companion_obj_arr) == 0:
+                            continue
+                        save_data = companion_obj_arr.to_numpy()
+        
+                    # Resize the dataset and add data.
+                    old_size = dataset.shape[0]
+                    if companion_obj_arr is None:
+                        new_size = old_size + len(dataframe)
+                    else:
+                        new_size = old_size + len(companion_obj_arr)
+                    dataset.resize((new_size, ))
+                    dataset[old_size:new_size] = save_data
+        
+                hf.close()
+    else:
+        # Open our HDF5 file for reading and appending.
+        # Create as necessary.
+        hf = h5py.File(output_root + '.h5', 'r+')
 
-            # HDF5 dataset name
-            dset_name = 'l' + str(ll) + 'b' + str(bb)
+        # HDF5 dataset name
+        dset_name = next(iter(obj_arr))
 
-            # Create data set if needed. Start with 0 stars in the dataset.
-            if dset_name not in hf:
-                dataset = hf.create_dataset(dset_name, shape=(0,),
-                                            chunks=(1e4,),
-                                            maxshape=(None,),
-                                            dtype=compound_dtype)
-            else:
-                dataset = hf[dset_name]
+        # Create data set if needed. Start with 0 stars in the dataset.
+        if dset_name not in hf:
+            dataset = hf.create_dataset(dset_name, shape=(0,),
+                                        chunks=(1e4,),
+                                        maxshape=(None,),
+                                        dtype=compound_dtype)
+        else:
+            dataset = hf[dset_name]
 
-            ##########
-            # Binning the stars and/or compact objects or companions
-            ##########
-            if obj_arr is not None:
-                dataframe = obj_arr[dset_name]
-                #id_lb = np.where((dataframe['glat'] != np.nan))[0]
-                
-                if len(dataframe) == 0:
-                    continue
-                
+        ##########
+        # Binning the stars and/or compact objects or companions
+        ##########
+        if obj_arr is not None:
+            dataframe = obj_arr[dset_name]
+            #id_lb = np.where((dataframe['glat'] != np.nan))[0]
+            if len(dataframe) != 0:
                 # Loop over the obj_arr and add all columns
                 # (matching id_lb) into save_data
                 save_data = np.empty(len(dataframe), dtype=compound_dtype)
-
+    
                 if companion_obj_arr is None:
                     for colname in dataframe:
                         save_data[colname] = dataframe[colname].to_numpy()
                 # If making a companion hd5f file, finds corresponding companions and save them
                 else:
-#                    companion_id_lb = [np.where(companion_obj_arr['system_idx'] == ii)[0] for ii in dataframe['obj_id'][id_lb]]
-#                    companion_id_lb = list(np.concatenate(companion_id_lb).ravel()) # Simplifies datastructure
-                    if len(companion_obj_arr) == 0:
-                        continue
-                    save_data = companion_obj_arr.to_numpy()
-
+    #                    companion_id_lb = [np.where(companion_obj_arr['system_idx'] == ii)[0] for ii in dataframe['obj_id'][id_lb]]
+    #                    companion_id_lb = list(np.concatenate(companion_id_lb).ravel()) # Simplifies datastructure
+                    if len(companion_obj_arr) != 0:
+                        save_data = companion_obj_arr.to_numpy()
+    
                 # Resize the dataset and add data.
                 old_size = dataset.shape[0]
                 if companion_obj_arr is None:
@@ -2739,7 +2787,7 @@ def _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, obj_arr, output_root, comp
                 dataset.resize((new_size, ))
                 dataset[old_size:new_size] = save_data
 
-            hf.close()
+            hf.flush()
 
     return
 
@@ -5022,7 +5070,7 @@ def _check_refine_events(input_root, filter_dict, red_law, overwrite, output_fil
                 raise Exception(exception_str)
 
 
-def refine_events(input_root, red_law, filter_dict = None, filter_name = None, photometric_system = None,
+def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_name = None, photometric_system = None,
                   overwrite=False, output_file='default', hdf5_file_comp=None, legacy = False, seed = None, 
                   galactic_model_code = 'galaxia'):
     """
@@ -5103,6 +5151,10 @@ def refine_events(input_root, red_law, filter_dict = None, filter_name = None, p
     # Error handling/complaining if input types are not right.
     _check_refine_events(input_root, filter_dict, red_law, overwrite, output_file, hdf5_file_comp,
                          legacy, seed, filter_name=filter_name, photometric_system=photometric_system)
+
+    if galactic_model_code == "synthpop":
+        print("Warning: red_law is not used in SynthPop.")
+        red_law = ""
     
     if (filter_name is not None) & (photometric_system is not None):
         warn('filter_name and photometric_system are deprecated, please use filter_dict', DeprecationWarning, stacklevel=2)
@@ -5535,7 +5587,7 @@ def calc_distance(event_tab, time):
     return sign*u
 
 
-def calc_blend_and_centroid(filter_name, red_law, blend_tab, photometric_system='ubv'):
+def calc_blend_and_centroid(filter_name, red_law, blend_tab, photometric_system='ubv', galactic_model_code="galaxia"):
     """
     Given the absolute magnitudes of a bunch of things,
     calculate their blended apparent magnitude and flux.
@@ -5545,12 +5597,17 @@ def calc_blend_and_centroid(filter_name, red_law, blend_tab, photometric_system=
     Filter name is 'j', 'i', etc.
     red_law is Damineli16, Schlegel99, etc.
     """
-    f_i = filt_dict[photometric_system + '_' + filter_name][red_law]
 
-    # Calculate apparent magnitudes
-    app_N = calc_app_mag(blend_tab['rad_N'],
-                         blend_tab[photometric_system + '_' + filter_name + '_N'],
-                         blend_tab['exbv_N'], f_i)
+    if galactic_model_code == "galaxia":
+        f_i = filt_dict[photometric_system + '_' + filter_name][red_law]
+    
+        # Calculate apparent magnitudes
+        app_N = calc_app_mag(blend_tab['rad_N'],
+                             blend_tab[photometric_system + '_' + filter_name + '_N'],
+                             blend_tab['exbv_N'], f_i)
+        
+    if galactic_model_code == "synthpop":
+        app_N = blend_tab[photometric_system + '_' + filter_name + '_N']  # SynthPop: apparent magnitudes
 
     # Convert absolute magnitudes to fluxes, and fix bad values
     flux_N = 10 ** (app_N / -2.5)
@@ -5587,10 +5644,9 @@ def _calc_observables(filter_name, red_law, event_tab, blend_tab, photometric_sy
     blend_tab : Astropy table
 
     """
-    f_i = filt_dict[photometric_system + '_' + filter_name][red_law]
-    print(galactic_model_code)
 
     if galactic_model_code == 'galaxia':
+        f_i = filt_dict[photometric_system + '_' + filter_name][red_law]
     # Calculate apparent magnitude of lens and source, and fix bad values
         app_S = calc_app_mag(event_tab['rad_S'],
                              event_tab[photometric_system + '_' + filter_name + '_S'],
@@ -5674,7 +5730,8 @@ def _calc_observables(filter_name, red_law, event_tab, blend_tab, photometric_sy
             app_blended, flux_N_tot, cent_l, cent_b = calc_blend_and_centroid(filter_name,
                                                                               red_law,
                                                                               blend_tab[start:end],
-                                                                              photometric_system)
+                                                                              photometric_system,
+                                                                             galactic_model_code=galactic_model_code)
             flux_N[pp] = flux_N_tot
             event_tab['cent_glon_' + filter_name + '_N'][pp] = cent_l
             event_tab['cent_glat_' + filter_name + '_N'][pp] = cent_b
