@@ -356,9 +356,7 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
             mod = synthpop.SynthPop(synth_config_file, **synthpop_dict)
 
         if "output_location" in synthpop_dict:
-            print("Warning: output_location will be overridden by config_file path.")
-        if os.path.isfile(config_filename):
-            synthpop_dict['output_location'] = os.path.abspath(os.path.dirname(config_filename))
+            synthpop_dict['output_location'] = os.path.abspath(synthpop_dict['output_location'])
         else:
             synthpop_dict['output_location'] = os.getcwd()
         
