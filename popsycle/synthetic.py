@@ -516,7 +516,7 @@ def write_synthpop_params(mod, config_file,
         "fieldScaleUnit %s" % field_scale_unit,
         "fieldShape %s" % field_shape,
     ]
-    if 'output_filename_pattern' in kwargs or mod.parms.output_filename_pattern:
+    """if 'output_filename_pattern' in kwargs or mod.parms.output_filename_pattern:
         file_keys = {
             "time": datetime.datetime.now().time(),
             "date": datetime.datetime.now().date(),
@@ -530,7 +530,7 @@ def write_synthpop_params(mod, config_file,
         else:
             scale_factor_ending = ""
 
-        name_for_output = mod.parms.output_filename_pattern.format(**file_keys) + scale_factor_ending
+        name_for_output = mod.parms.output_filename_pattern.format(**file_keys) + scale_factor_ending"""
 
     synthpop_param_fname = '%s_synthpop_params.txt' % name_for_output
 
@@ -599,7 +599,7 @@ def process_location_popsycle(
             Number of bins
         """
 
-        # Get output parameters
+        """# Get output parameters
         if 'output_filename_pattern' in kwargs or model.parms.output_filename_pattern:
             file_keys = {
                 "time": datetime.datetime.now().time(),
@@ -616,7 +616,7 @@ def process_location_popsycle(
     
             name_for_output = f"{model.parms.output_filename_pattern.format(**file_keys) + scale_factor_ending}"
         else:
-            name_for_output = f"{model.get_filename(l_deg, b_deg)}"
+            name_for_output = f"{model.get_filename(l_deg, b_deg)}"""
 
         if 'output_location' in kwargs:
             output_location = kwargs['output_location']
@@ -755,7 +755,7 @@ def process_location_popsycle_parallel(
 
         model = synthpop.SynthPop(config_file, binning_procedure = True, *args, **kwargs) # Reference model for output parameters
 
-        # Get output parameters
+        """# Get output parameters
         if 'output_filename_pattern' in kwargs or model.parms.output_filename_pattern:
             file_keys = {
                 "time": datetime.datetime.now().time(),
@@ -772,7 +772,7 @@ def process_location_popsycle_parallel(
     
             name_for_output = f"{model.parms.output_filename_pattern.format(**file_keys) + scale_factor_ending}"
         else:
-            name_for_output = f"{model.get_filename(l_deg, b_deg)}"
+            name_for_output = f"{model.get_filename(l_deg, b_deg)}"""
     
         if 'output_location' in kwargs:
             output_location = kwargs['output_location']
@@ -796,9 +796,9 @@ def process_location_popsycle_parallel(
 
         # Multiprocessing arguments
         index = 0
-        dict = Manager().dict()
-        lock = Manager().Lock()
-        dict['index'] = 0
+        # dict = Manager().dict()
+        # lock = Manager().Lock()
+        # dict['index'] = 0
         coords_list = []
         edge_pairs = []
         
@@ -809,22 +809,31 @@ def process_location_popsycle_parallel(
                 _b_deg=(lat_bin_edges[j]+lat_bin_edges[j+1])/2
                 field_scale=np.abs(long_bin_edges[i] - long_bin_edges[i+1])
 
-                coords_tuple = (_l_deg, _b_deg, field_scale, dict, lock, field_shape, field_scale_unit, i, j, name_for_output, kwargs)
+                coords_tuple = (_l_deg, _b_deg, field_scale, field_shape, field_scale_unit, i, j, name_for_output, kwargs)
                 
                 edge_pairs.append(coords_tuple)
 
         pool = Pool(processes=proc_num, initializer=init_model, initargs=(config_file, args, kwargs,)) # Open multiprocessing pool
         
-        results = pool.starmap_async(process_location_popsycle_worker, edge_pairs)  # Run field generation
+        results = pool.starmap(process_location_popsycle_worker, edge_pairs)  # Run field generation
 
-        results = results.get()
+        pool.close()
+        pool.join()
 
         for set in results:
             popsycle_list = {}
             popsycle_bin_list = {}
+
+            object_df = set[0]
+            companion_df = set[1]
+
+            object_df['obj_id'] = object_df['obj_id'] + index
+            companion_df['system_idx'] = companion_df['system_idx'] + index
+
+            index = object_df['obj_id'].max() + 1
             
-            popsycle_list[f"l{str(set[4])}b{str(set[5])}"] = set[0]   # Object dataframe
-            popsycle_bin_list[f"l{str(set[4])}b{str(set[5])}"]= set[1]  # Companions dataframe
+            popsycle_list[f"l{str(set[4])}b{str(set[5])}"] = object_df   # Object dataframe
+            popsycle_bin_list[f"l{str(set[4])}b{str(set[5])}"]= companion_df  # Companions dataframe
 
             if model.parms.multiplicity_kwargs != None:
                 _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, popsycle_bin_list, f"{output_root}_companions")
@@ -844,7 +853,7 @@ def process_location_popsycle_parallel(
 
         return
 
-def process_location_popsycle_worker(l_deg, b_deg, field_scale, dict, lock, field_shape, field_scale_unit, i, j, name_for_output, kwargs):
+def process_location_popsycle_worker(l_deg, b_deg, field_scale, field_shape, field_scale_unit, i, j, name_for_output, kwargs):
     """
         Performs the field generation for a subfield at a given position with multiprocessing.
         Returns a list containing the generated dataframes, coordinates, and edge numbers.
@@ -861,10 +870,10 @@ def process_location_popsycle_worker(l_deg, b_deg, field_scale, dict, lock, fiel
                                                                   save_data=False)
 
     
-    popsycle_df['obj_id'] = popsycle_df['obj_id'] + dict['index']
-    popsycle_bin_df['system_idx'] = popsycle_bin_df['system_idx'] + dict['index']
+    # popsycle_df['obj_id'] = popsycle_df['obj_id'] + dict['index']
+    # popsycle_bin_df['system_idx'] = popsycle_bin_df['system_idx'] + dict['index']
     
-    dict['index'] = popsycle_df['obj_id'].max() + 1
+    # dict['index'] = popsycle_df['obj_id'].max() + 1
 
     return [popsycle_df, popsycle_bin_df, l_deg, b_deg, i, j]
 
@@ -2684,6 +2693,9 @@ def _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, obj_arr, output_root, comp
     """ for i in range(len(obj_arr)):
         dataframe = obj_arr[i]
         print(dataframe) """
+    # Open our HDF5 file for reading and appending.
+    # Create as necessary.
+    hf = h5py.File(output_root + '.h5', 'r+')
 
     if len(obj_arr) > 1:
         
@@ -2704,6 +2716,7 @@ def _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, obj_arr, output_root, comp
                                                 dtype=compound_dtype)
                 else:
                     dataset = hf[dset_name]
+                    continue
         
                 ##########
                 # Binning the stars and/or compact objects or companions
@@ -2739,11 +2752,8 @@ def _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, obj_arr, output_root, comp
                     dataset.resize((new_size, ))
                     dataset[old_size:new_size] = save_data
         
-                hf.close()
+        hf.close()
     else:
-        # Open our HDF5 file for reading and appending.
-        # Create as necessary.
-        hf = h5py.File(output_root + '.h5', 'r+')
 
         # HDF5 dataset name
         dset_name = next(iter(obj_arr))
@@ -2788,6 +2798,7 @@ def _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, obj_arr, output_root, comp
                 dataset[old_size:new_size] = save_data
 
             hf.flush()
+        hf.close()
 
     return
 
