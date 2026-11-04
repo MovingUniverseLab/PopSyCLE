@@ -1250,20 +1250,8 @@ def run(output_root='root0',
             synth_config_file = synthpop_dict['config_filename']
         else:
             synth_config_file = "synthpop/synthpop/config_files/popsycle_multiples_defaults.synthpop_conf"
-        
-        synthpop_dict['output_filename_pattern'] = "{name_for_output}_l{l_deg:.3f}_b{b_deg:.3f}"  # Force naming convention
 
-        # Get output name
-        file_keys = {
-            "time": datetime.datetime.now().time(),
-            "date": datetime.datetime.now().date(),
-            "l_deg": field_config['longitude'],
-            "b_deg": field_config['latitude'],
-            "name_for_output": output_root,
-            }
-        scale_factor_ending = ""
-    
-        name_for_output = f"{synthpop_dict['output_filename_pattern'].format(**file_keys) + scale_factor_ending}"
+        name_for_output = output_root
     
         if 'output_location' in synthpop_dict:
             synthpop_dict['output_location'] = os.path.relpath(synthpop_dict['output_location'])
