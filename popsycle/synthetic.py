@@ -916,7 +916,7 @@ def run_synthpop(output_root="default", longitude=None,
     <name_for_output>__synthpop.log : str
         A log file with information about the Synthpop execution
     """
-    config_file = "popsycle_multiples_defaults.synthpop_conf"
+    # config_file = "popsycle_multiples_defaults.synthpop_conf"
     field_shape="box"
     field_scale_unit='deg'
     save_data = False

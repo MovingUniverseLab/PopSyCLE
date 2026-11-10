@@ -349,8 +349,9 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
         # Initiate SynthPop model to obtain SynthPop parameters
         if "config_file" in synthpop_dict:
             synth_config_file = synthpop_dict['config_file']
-            synthpop_dict.pop('config_file', None)
-            mod = synthpop.SynthPop(synth_config_file, **synthpop_dict)
+            synth_copy = synthpop_dict.copy()
+            synth_copy.pop('config_file', None)
+            mod = synthpop.SynthPop(synth_config_file, **synth_copy)
         else:
             synth_config_file = "popsycle_multiples_defaults.synthpop_conf"
             mod = synthpop.SynthPop(synth_config_file, **synthpop_dict)
