@@ -792,7 +792,7 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
         synthpop_dict = popsycle_config['synthpop_dict']
         
         if 'config_file' in synthpop_dict:
-            synth_config_file = synthpop_dict['config_filename']
+            synth_config_file = synthpop_dict['config_file']
         else:
             synth_config_file = "synthpop/synthpop/config_files/popsycle_multiples_defaults.synthpop_conf"
         
@@ -1248,7 +1248,7 @@ def run(output_root='root0',
         synthpop_dict = popsycle_config['synthpop_dict']
         
         if 'config_file' in synthpop_dict:
-            synth_config_file = synthpop_dict['config_filename']
+            synth_config_file = synthpop_dict['config_file']
         else:
             synth_config_file = "synthpop/synthpop/config_files/popsycle_multiples_defaults.synthpop_conf"
 
