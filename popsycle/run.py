@@ -1177,7 +1177,8 @@ def run(output_root='root0',
         skip_calc_events=False,
         skip_refine_events=False,
         skip_refine_binary_events=False,
-        run_synthpop=False):
+        run_synthpop=False,
+        galactic_model_code='galaxia'):
 
     t0 = time.time()
 
