@@ -578,6 +578,7 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
                           skip_calc_events=False, skip_refine_events=False,
                           skip_refine_binary_events=False,
                           run_synthpop=False,
+                          galactic_model_code='galaxia',
                           verbose = 0):
     """
     Generates (and possibly submits) the slurm script that
@@ -1042,6 +1043,9 @@ exit $exitcode
 
     if run_synthpop:
         optional_cmds += '--run-synthpop '
+
+    if galactic_model_code:
+        optional_cmds += '--galactic-model={} '.format(galactic_model_code)
 
     # Populate the mpi_template specified inputs
     job_script = slurm_template.format(**locals())
@@ -1574,6 +1578,9 @@ def main():
     optional.add_argument('--n-cores-synthpop', type=int,
                           help="Number of processes to run within SynthPop.", 
                           default=1)
+    optional.add_argument('--galactic-model', type=str,
+                          help="Galactic model used, galaxia or synthpop", 
+                          default='galaxia')
     """optional.add_argument('--synthpop-dict',
                           help="Arguments for SynthPop.",
                           type=json.loads, default={})"""
@@ -1596,7 +1603,8 @@ def main():
         skip_calc_events=args.skip_calc_events,
         skip_refine_events=args.skip_refine_events,
         skip_refine_binary_events=args.skip_refine_binary_events,
-        run_synthpop=args.run_synthpop)
+        run_synthpop=args.run_synthpop,
+        galactic_model_code=args.galactic_model)
 
 
 if __name__ == '__main__':
