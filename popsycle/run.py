@@ -357,9 +357,8 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
             mod = synthpop.SynthPop(synth_config_file, **synthpop_dict)
 
         if "output_location" in synthpop_dict:
-            synthpop_dict['output_location'] = os.path.abspath(synthpop_dict['output_location'])
-        else:
-            synthpop_dict['output_location'] = os.getcwd()
+            print("Warning: SynthPop output_location will be overwritten by PopSyCLE configuration")
+            synthpop_dict.pop("output_location", None)
         
         multiplicity = mod.parms.multiplicity_kwargs
         IFMR = mod.parms.ifmr_kwargs
@@ -1259,10 +1258,7 @@ def run(output_root='root0',
 
         name_for_output = output_root
     
-        if 'output_location' in synthpop_dict:
-            synthpop_dict['output_location'] = os.path.relpath(synthpop_dict['output_location'])
-            output_location = synthpop_dict['output_location']
-            name_for_output = f'{output_location}/{name_for_output}'
+        synthpop_dict['output_location'] = os.cwd()
         
         longitude = field_config['longitude'],
         latitude = field_config['latitude'],
@@ -1462,7 +1458,7 @@ def run(output_root='root0',
             sys.exit(1)
 
         # Run refine_events
-        print('-- Executing refine_events')
+        print('-- Executing refine_events')'
         synthetic.refine_events(input_root=output_root,
                                 filter_dict=popsycle_config['filter_dict'],
                                 red_law=popsycle_config['red_law'],
