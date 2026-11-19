@@ -1458,7 +1458,7 @@ def run(output_root='root0',
             sys.exit(1)
 
         # Run refine_events
-        print('-- Executing refine_events')'
+        print('-- Executing refine_events')
         synthetic.refine_events(input_root=output_root,
                                 filter_dict=popsycle_config['filter_dict'],
                                 red_law=popsycle_config['red_law'],
