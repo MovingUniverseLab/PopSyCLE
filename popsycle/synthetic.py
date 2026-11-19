@@ -23,7 +23,7 @@ from astropy.table import Table, Column, MaskedColumn
 from astropy.table import vstack
 from spisea.imf import imf
 from spisea import synthetic, evolution, ifmr
-from spisea.imf.multiplicity import MultiplicityResolvedDK
+from spisea.imf.multiplicity import MultiplicityResolvedDK, MultiplicityResolvedOffner2023
 from scipy.spatial import cKDTree
 import time
 import datetime
@@ -103,7 +103,8 @@ all_filt_list = ['ubv,U', 'ubv,B', 'ubv,V', 'ubv,I', 'ubv,R',
 # List of all supported multiplicity classes
 ##########
 multiplicity_list = {'None': None,
-                     'ResolvedDK': MultiplicityResolvedDK}
+                     'ResolvedDK': MultiplicityResolvedDK,
+                     'ResolvedOffner2023': MultiplicityResolvedOffner2023}
 
 ###########################################################################
 ############# Population synthesis and associated functions ###############
