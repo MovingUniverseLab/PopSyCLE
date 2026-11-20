@@ -958,7 +958,8 @@ def run_synthpop(output_root="default", longitude=None,
             name_for_output = mod.parms.name_for_output
     
         # Writes out galaxia params to disk
-        write_synthpop_params(mod, config_file, name_for_output, l_deg, b_deg, field_shape, surveyArea, field_scale_unit, **kwargs)
+        write_synthpop_params(mod, config_file, name_for_output, l_deg, b_deg, field_shape, surveyArea, field_scale_unit, 
+                                bin_edges_number=9, **kwargs)
 
         t0 = time.time()
 
