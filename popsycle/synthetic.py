@@ -782,6 +782,8 @@ def process_location_popsycle_parallel(
     
         output_root = os.path.join(output_location, name_for_output)
 
+        print("IN the parallel func", bin_edges_number)
+
         # Calculate bin edges
         _, lat_bin_edges, long_bin_edges = _get_bin_edges_box(latitude, longitude, surveyArea, bin_edges_number)
 
