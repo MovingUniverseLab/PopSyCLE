@@ -1360,6 +1360,7 @@ def run(output_root='root0',
 
     if run_synthpop:
         # Run SynthPop
+        print('run synthpop dict,', synthpop_dict)
         synthetic.run_synthpop(output_root,
                           longitude=field_config['longitude'],
                           latitude=field_config['latitude'],

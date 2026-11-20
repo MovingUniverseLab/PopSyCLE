@@ -922,6 +922,8 @@ def run_synthpop(output_root="default", longitude=None,
     field_scale_unit='deg'
     save_data = False
 
+    print('run_synthpop bin edges', bin_edges_number)
+
     # Rename variables to match SynthPop inputs
     name_for_output = output_root
     surveyArea = area
