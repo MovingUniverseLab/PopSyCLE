@@ -706,8 +706,8 @@ def process_location_popsycle_parallel(
     field_shape: str = 'box',
     surveyArea: float = None,
     field_scale_unit: str = 'deg',
-    save_data = False, bin_edges_number = None,
-    proc_num=1,
+    save_data = False, proc_num=1,
+    bin_edges_number = None,
     *args,**kwargs):
         """
         Performs the field generation for a given position with multiprocessing.
