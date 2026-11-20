@@ -1258,7 +1258,7 @@ def run(output_root='root0',
 
         name_for_output = output_root
     
-        synthpop_dict['output_location'] = os.cwd()
+        synthpop_dict['output_location'] = os.getcwd()
         
         longitude = field_config['longitude'],
         latitude = field_config['latitude'],
