@@ -959,14 +959,14 @@ def run_synthpop(output_root="default", longitude=None,
     
         # Writes out galaxia params to disk
         write_synthpop_params(mod, config_file, name_for_output, l_deg, b_deg, field_shape, surveyArea, field_scale_unit, 
-                                bin_edges_number=9, **kwargs)
+                                **kwargs)
 
         t0 = time.time()
 
         print(" KWARGS FOR MULTIPROC", kwargs)
         
         process_location_popsycle_parallel(config_file, name_for_output, l_deg, b_deg, field_shape, surveyArea, field_scale_unit,
-                                                   save_data, proc_num, *args, **kwargs)
+                                                   save_data, proc_num, bin_edges_number=9, *args, **kwargs)
 
     if 'output_location' in kwargs:
         output_location = kwargs['output_location']
