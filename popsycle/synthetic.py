@@ -782,8 +782,6 @@ def process_location_popsycle_parallel(
     
         output_root = os.path.join(output_location, name_for_output)
 
-        print("BIN EDGES NUMBER", bin_edges_number)
-
         # Calculate bin edges
         _, lat_bin_edges, long_bin_edges = _get_bin_edges_box(latitude, longitude, surveyArea, bin_edges_number)
 
@@ -923,6 +921,9 @@ def run_synthpop(output_root="default", longitude=None,
     field_shape="box"
     field_scale_unit='deg'
     save_data = False
+
+    print('args', args)
+    print('kwargs', kwargs)
 
     # Rename variables to match SynthPop inputs
     name_for_output = output_root
