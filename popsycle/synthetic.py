@@ -2187,6 +2187,7 @@ def _get_bin_edges_box(l, b, surveyArea, bin_edges_number):
     # Angle wrapping for longitude
     wrap_id = np.where(long_bin_edges > 180)[0]
     long_bin_edges[wrap_id] -= 360
+    print(bin_edges_number, lat_bin_edges.shape)
     return bin_edges_number, lat_bin_edges, long_bin_edges
 
 
