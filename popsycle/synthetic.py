@@ -782,8 +782,6 @@ def process_location_popsycle_parallel(
     
         output_root = os.path.join(output_location, name_for_output)
 
-        print("IN the parallel func", bin_edges_number)
-
         # Calculate bin edges
         _, lat_bin_edges, long_bin_edges = _get_bin_edges_box(latitude, longitude, surveyArea, bin_edges_number)
 
@@ -923,9 +921,6 @@ def run_synthpop(output_root="default", longitude=None,
     field_shape="box"
     field_scale_unit='deg'
     save_data = False
-
-    print('args', args)
-    print('kwargs', kwargs)
 
     # Rename variables to match SynthPop inputs
     name_for_output = output_root
@@ -2177,18 +2172,14 @@ def _get_bin_edges_box(l, b, surveyArea, bin_edges_number):
     # (to potentially catch any edge cases.)
     # make bins of size ~1/2 arcmin
     width = np.sqrt(surveyArea)/2  # degrees
-    print("WHAT IS THE BIN PROBLEM")
-    print(surveyArea, width, bin_edges_number)
     # Define bin_edges_number, if not given in input.
     if bin_edges_number is None:
         # set the widths to 1/2 arcmin
         bin_edges_number = int(60 * 2 * width) + 1
-        print("bin edge number NONE ->", bin_edges_number)
     # Make sure we have enough bin edges (min is 3)
     bin_edges_number = max(bin_edges_number, 3)
     # Make sure we have don't have too many bin edges (max is 40)
     bin_edges_number = min(bin_edges_number, 40)
-    print("after min max, ", bin_edges_number)
     lat_bin_edges = np.linspace(b + width, b - width,
                                 bin_edges_number)
     long_bin_edges = np.linspace(l - width, l + width,
@@ -2197,7 +2188,6 @@ def _get_bin_edges_box(l, b, surveyArea, bin_edges_number):
     wrap_id = np.where(long_bin_edges > 180)[0]
     long_bin_edges[wrap_id] -= 360
 
-    print(bin_edges_number, lat_bin_edges.shape)
     return bin_edges_number, lat_bin_edges, long_bin_edges
 
 
