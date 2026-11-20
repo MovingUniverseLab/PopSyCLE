@@ -962,7 +962,7 @@ def run_synthpop(output_root="default", longitude=None,
 
         t0 = time.time()
 
-        print(kwargs)
+        print(" KWARGS FOR MULTIPROC", kwargs)
         
         process_location_popsycle_parallel(config_file, name_for_output, l_deg, b_deg, field_shape, surveyArea, field_scale_unit,
                                                    save_data, proc_num, *args, **kwargs)
