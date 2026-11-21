@@ -471,7 +471,7 @@ def write_synthpop_params(mod, config_file,
                           field_shape: str = 'box',
                           surveyArea: float = None,
                           field_scale_unit: str = 'deg',
-                         **kwargs):
+                          **kwargs):
     """
     Creates the parameter file that Synthpop requires for running.
 
@@ -647,6 +647,15 @@ def process_location_popsycle(
         # Run field generation for each subfield
         index = 0
 
+        if os.path.exists(output_root + '_synthpop_params.txt'):
+            with open(output_root + '_synthpop_params.txt', 'r') as params_file:
+                    lines = params_file.read()
+        else:
+            lines = ""
+        with open(output_root + '_synthpop_params.txt', 'w') as params_file:
+                params_file.write(f"seed {model.parms.random_seed}\n")
+                params_file.write(lines)
+
         for i in range(len(lat_bin_edges)-1):
             for j in range(len(long_bin_edges)-1):
 
@@ -676,16 +685,6 @@ def process_location_popsycle(
                     _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, popsycle_bin_dataset, f"{output_root}_companions")
         
                 _bin_lb_hdf5_lists(lat_bin_edges, long_bin_edges, popsycle_dataset, output_root)
-            
-
-        if os.path.exists(output_root + '_synthpop_params.txt'):
-                with open(output_root + '_synthpop_params.txt', 'r') as params_file:
-                    lines = params_file.read()
-        else:
-            lines = ""
-        with open(output_root + '_synthpop_params.txt', 'w') as params_file:
-                params_file.write(f"seed {model.parms.random_seed}\n")
-                params_file.write(lines)
 
         logger.info(f"PopSyCLE formatted output saved in {output_root}.h5")
 
@@ -5197,7 +5196,8 @@ def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_n
 
     # Error handling/complaining if input types are not right.
     _check_refine_events(input_root, filter_dict, red_law, overwrite, output_file, hdf5_file_comp,
-                         legacy, seed, filter_name=filter_name, photometric_system=photometric_system)
+                         legacy, seed, filter_name=filter_name, photometric_system=photometric_system,
+                         n_proc=n_proc, multi_proc=multi_proc)
 
     if galactic_model_code == "synthpop":
         print("Warning: red_law is not used in SynthPop.")
@@ -5395,13 +5395,14 @@ def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_n
                 results.append(_refine_events_companion_table_loop(*input))
 
         hf_comp.close()
-        companion_table = pd.concat(results, ignore_index=True)        
-        
+        companion_table = pd.concat(results, ignore_index=True)     
+
         if len(companion_table) > 0:
             
             # Adds parameters
             companion_table = _add_multiples_parameters(companion_table, event_tab)
-            companion_table = _add_binary_angles(companion_table, event_tab)
+            bin_ang_n_proc = n_proc if multi_proc else 1
+            companion_table = _add_binary_angles(companion_table, event_tab, n_proc)
             companion_table = Table.from_pandas(companion_table).filled(np.nan)
             
             # Adds metadata
@@ -5806,7 +5807,7 @@ def _calc_observables(filter_name, red_law, event_tab, blend_tab, photometric_sy
     return
 
 
-def _add_binary_angles(companion_table, event_table):
+def _add_binary_angles(companion_table, event_table, n_proc):
     """
     -Adds the following angles to the companion array:
         - alpha: angle between North and binary axis (East of North)
@@ -5824,6 +5825,9 @@ def _add_binary_angles(companion_table, event_table):
         
     event_table : astropy table
         Astropy table with refined events
+
+    n_proc : int
+        number of processes
 
     Returns
     -------
@@ -5843,7 +5847,22 @@ def _add_binary_angles(companion_table, event_table):
     del event_table_df
     
     start_time_bin_angles = time.time()    
-    alphas, phi_pi_Es, phis, tps = calculate_binary_angles(companion_tmp_df_joined)
+
+    loop_inputs = companion_tmp_df_joined.iterrows()
+    
+    if n_proc>1:
+        pool = Pool(n_proc)
+        results = pool.starmap(calculate_binary_angles, loop_inputs)
+        # Multi-Threaded: clean up pool
+        pool.close()
+        pool.join()
+    else:
+        results = []
+        for i, input in enumerate(loop_inputs):
+            results.append(calculate_binary_angles(*input))
+
+    results = np.array(results)
+    alphas, phi_pi_Es, phis, tps = results[:,0], results[:,1], results[:,2], results[:,3]
         
     companion_tmp_df_joined['alpha'] = alphas
     companion_tmp_df_joined['phi_pi_E'] = phi_pi_Es
@@ -5854,13 +5873,14 @@ def _add_binary_angles(companion_table, event_table):
     # doing list(cluster.companions.columns) + those other names means that it only takes columns 
     # that were in cluster.companions and obj_id_L, obj_id_S, alpha,...
     companion_tmp_df = companion_tmp_df_joined.reset_index()[list(companion_tmp_df.columns) + ['obj_id_L', 'obj_id_S'] + ['alpha', 'phi_pi_E', 'phi', 'tp']]
-    #print('full bin angles loop', time.time() - start_time_bin_angles)
+    print('full bin angles loop', time.time() - start_time_bin_angles)
     
     del companion_tmp_df_joined
     return companion_tmp_df
 
-def calculate_binary_angles(joined_table):
+def calculate_binary_angles(index, row):
     """
+    TODO: UPDATE DOCSTRING IF I KEEP MY CHANGES IN
     * Calculates the following angles to the companion array:
     
         * alpha: angle between North and binary axis (East of North)
@@ -5888,12 +5908,12 @@ def calculate_binary_angles(joined_table):
     
     
     """
-    alphas = []
-    phi_pi_Es = []
-    phis = []
-    tps = []
+    # alphas = []
+    # phi_pi_Es = []
+    # phis = []
+    # tps = []
     
-    for index, row in joined_table.iterrows():
+    if True: #for index, row in joined_table.iterrows():
         
         # At the end of refine events prim_type is encoded in bytes
         # so we need to decode it to strings
@@ -5917,8 +5937,7 @@ def calculate_binary_angles(joined_table):
         orb.t0 = np.random.rand()*row['P'] + row['t0'] # [years] This is initial
         orb.mass = row['systemMass_{}'.format(prim_type)] # [Msun]
 
-        tps.append(orb.t0)
-        
+        tp = orb.t0
         
         # Position of the companion when primary at origin
         # r[0][0] is galactic east
@@ -6018,11 +6037,11 @@ def calculate_binary_angles(joined_table):
         
         phi = (alpha - phi_pi_E) % 360
         
-        alphas.append(alpha)
-        phi_pi_Es.append(phi_pi_E)
-        phis.append(phi)
+        # alphas.append(alpha)
+        # phi_pi_Es.append(phi_pi_E)
+        # phis.append(phi)
     
-    return alphas, phi_pi_Es, phis, tps
+    return alpha, phi_pi_E, phi, tp
 
 def _add_multiples_parameters(companion_table, event_table):
     """
