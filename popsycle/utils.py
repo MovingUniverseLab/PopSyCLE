@@ -584,7 +584,8 @@ def generate_isochrones(iso_dir, logAge_min=5.01, logAge_max=10.291,
                                         recomp=True)
        
             
-def remove_nan_companions(event_table_loc, comp_table_loc, event_output_loc = None, comp_output_loc = None, overwrite = False, rewrite_old_loc = None):
+def remove_nan_companions(event_table_loc, comp_table_loc, event_output_loc = None, comp_output_loc = None, 
+                          overwrite = False, rewrite_old_loc = None, n_proc=1, multi_proc=True):
     """
     utility to remove companions that were not assigned a final mass
     or other parameters. This functionality will be implemented in
@@ -625,6 +626,16 @@ def remove_nan_companions(event_table_loc, comp_table_loc, event_output_loc = No
         String of output location of companion table without nan companions.
         If None, does not get saved.
         Default is None.
+
+    n_proc : int, optional
+        Number of processors to use. Should not exceed the number of cores.
+        Default is one processor (no parallelization).
+    
+    multi_proc : bool, optional
+        Even if n_proc = 1, a pool is still created. If multi_proc = False,
+        instead there is just a for-loop to generate and analyze the lightcurves.
+        If multi_proc == False, n_proc must = 1.
+        Default is True.
     """
     t0 = time.time()
     now = datetime.datetime.now()
@@ -674,7 +685,7 @@ def remove_nan_companions(event_table_loc, comp_table_loc, event_output_loc = No
             comp_table_df = comp_table[remaining_companions_rows].to_pandas()
             comp_table_df = comp_table_df.set_index(['obj_id_L', 'obj_id_S'])
             joined_table = comp_table_df.join(event_table_df, lsuffix='_comp', rsuffix='_prim')
-            alphas, phi_pi_Es, phis = synthetic.calculate_binary_angles(joined_table)
+            alphas, phi_pi_Es, phis, _ = synthetic.calculate_binary_angles(joined_table, n_proc=n_proc, multi_proc=multi_proc)
             comp_table['alpha'][remaining_companions_rows] = alphas
             comp_table['phi'][remaining_companions_rows] = phis
             
