@@ -201,12 +201,12 @@ uint16 data_u2 2  2  5  ;
 } anonymous 1 1   ; 
 
 Write a string and read it back as string.
-Note, return type is numpy.ndarray, hence have to use tostring() 
+Note, return type is numpy.ndarray, hence have to use tobytes() 
 method to convert it back to string.
 
 >>> x = "abcdefghijkl"
 >>> ebf.write("check.ebf", "/mystr", numpy.array(x), "w")
->>> y = ebf.read("check.ebf", "/mystr").tostring()
+>>> y = ebf.read("check.ebf", "/mystr").tobytes()
 
 Write a list of string and read it back as numpy.ndarray of type numpy.string
 
@@ -456,8 +456,9 @@ class _EbfMap(object):
             header = _EbfHeader()
             header.read(fp1)
             if ((header.datatype == 3)&(header.name == '/.ebf/info')):
-                checksum = numpy.fromstring(fp1.read(8), dtype = 'int64')            
+                checksum = numpy.frombuffer(fp1.read(8), dtype = 'int64')            
                 if header.flagswap == 1:
+                    checksum = checksum.copy()
                     checksum = checksum.byteswap(True)
                 checksum=checksum[0]
         fp1.close()                    
@@ -482,7 +483,7 @@ class _EbfMap(object):
 #            header.read(fp1)
 #            datapos=fp1.tell()
 #            if ((header.datatype == 3)&(header.name == '/.ebf/hinfo')):
-#                checksum = numpy.fromstring(fp1.read(header.elements()*header.datasize), dtype = 'int64')            
+#                checksum = numpy.frombuffer(fp1.read(header.elements()*header.datasize), dtype = 'int64')            
 #                if header.flagswap == 1:
 #                    checksum = checksum.byteswap(True)
 #                mystr='('+dataname+', '+str(location)+') '
@@ -490,7 +491,7 @@ class _EbfMap(object):
 #                if header.flagswap == 1:
 #                    checksum = checksum.byteswap(True)
 #                fp1.seek(datapos,0)
-#                fp1.write(checksum.tostring('C'))            
+#                fp1.write(checksum.tobytes('C'))            
 #        fp1.close()                    
 #        
 #        _EbfMap.ltable[filename][dataname.lower()] = location
@@ -611,10 +612,10 @@ class _EbfHeader:
         """
         read the header from file
         """
-        sig0 = numpy.fromstring(fp1.read(3), dtype = 'S3')[0]
+        sig0 = numpy.frombuffer(fp1.read(3), dtype = 'S3')[0]
         fp1.seek(-3, 1)
-        sig1 = numpy.fromstring(fp1.read(8), dtype = 'S8')[0]
-        version = numpy.fromstring(fp1.read(4), dtype = 'int8')
+        sig1 = numpy.frombuffer(fp1.read(8), dtype = 'S8')[0]
+        version = numpy.frombuffer(fp1.read(4), dtype = 'int8')
         fp1.seek(-12, 1)
         if sig0 == 'EBF' :                    
             self.__read10(fp1)
@@ -629,26 +630,26 @@ class _EbfHeader:
         """
         read the header from file
         """
-        sig = numpy.fromstring(fp1.read(6), dtype = 'int8')
-        self.name = numpy.fromstring(fp1.read(100), dtype = 'S100')[0]
+        sig = numpy.frombuffer(fp1.read(6), dtype = 'int8')
+        self.name = numpy.frombuffer(fp1.read(100), dtype = 'S100')[0]
         self.name=self.name.replace('\x00',' ')
         self.name=self.name.strip().lower().decode('ascii')
         
-        unused = numpy.fromstring(fp1.read(2), dtype = 'int8')
-        unused = numpy.fromstring(fp1.read(36), dtype = 'S1')
-        self.endiantest = numpy.array(numpy.fromstring(fp1.read(4), dtype = 'int32')[0])
-        self.datatype = numpy.array(numpy.fromstring(fp1.read(4), dtype = 'int32')[0])
-        self.datasize = numpy.array(numpy.fromstring(fp1.read(4), dtype = 'int32')[0])
-        rank = numpy.array(numpy.fromstring(fp1.read(4), dtype = 'int32')[0])
-        unused = numpy.fromstring(fp1.read(32), dtype = 'i4')
-        self.dim = numpy.fromstring(fp1.read(64), dtype = 'i8')
+        unused = numpy.frombuffer(fp1.read(2), dtype = 'int8')
+        unused = numpy.frombuffer(fp1.read(36), dtype = 'S1')
+        self.endiantest = numpy.array(numpy.frombuffer(fp1.read(4), dtype = 'int32')[0])
+        self.datatype = numpy.array(numpy.frombuffer(fp1.read(4), dtype = 'int32')[0])
+        self.datasize = numpy.array(numpy.frombuffer(fp1.read(4), dtype = 'int32')[0])
+        rank = numpy.array(numpy.frombuffer(fp1.read(4), dtype = 'int32')[0])
+        unused = numpy.frombuffer(fp1.read(32), dtype = 'i4')
+        self.dim = numpy.frombuffer(fp1.read(64), dtype = 'i8').copy()
         self.flagswap = 0
         self.headersize = numpy.array(256, dtype = "int32")
 #        self.unitsize = numpy.array(0,dtype = "int32")
 #        self.namesize = numpy.array(len(self.name), dtype = "int32")
 
 
-#        if sig.tostring() != 'EBF>>>':
+#        if sig.tobytes() != 'EBF>>>':
 #            raise RuntimeError('EBF file signature error ')
         
         if self.endiantest != 256:
@@ -678,16 +679,16 @@ class _EbfHeader:
         """
         self.flagswap = 0
         self.headerpos = fp1.tell()
-        sig = numpy.fromstring(fp1.read(8), dtype = 'int8')
+        sig = numpy.frombuffer(fp1.read(8), dtype = 'int8')
         sig1 =  numpy.array((-118, 69, 66, 70, -82, 43, -81, 10), dtype = "int8")
         if (sum(sig == sig1)!=8):
             fp1.close()
             raise RuntimeError('Ebf signature does not match')
                                  
-        self.version = numpy.fromstring(fp1.read(4), dtype = 'int8')        
-        temp = numpy.fromstring(fp1.read(4*8), dtype = 'int32')
-        self.flags = numpy.fromstring(fp1.read(4), dtype = 'int8')
-        self.capacity_ = numpy.fromstring(fp1.read(8), dtype = 'int64')[0]
+        self.version = numpy.frombuffer(fp1.read(4), dtype = 'int8')        
+        temp = numpy.frombuffer(fp1.read(4*8), dtype = 'int32').copy()
+        self.flags = numpy.frombuffer(fp1.read(4), dtype = 'int8')
+        self.capacity_ = numpy.frombuffer(fp1.read(8), dtype = 'int64')[0]
         
         if temp[0] != 1684234849:
             temp.byteswap(True)
@@ -707,25 +708,27 @@ class _EbfHeader:
         sdefsize = numpy.array(temp[7])                
 
         if rank > 0:
-            self.dim = numpy.fromstring(fp1.read(8*rank), dtype = 'int64')
+            self.dim = numpy.frombuffer(fp1.read(8*rank), dtype = 'int64').copy()
             if self.flagswap == 1:
                 self.dim.byteswap(True)
         else:
             self.dim=numpy.array((),'int64')
 #            self.dim=numpy.zeros(0,'int64')
             
-        self.name = numpy.fromstring(fp1.read(namesize), dtype = 'S1').tostring()
+        self.name = numpy.frombuffer(fp1.read(namesize), dtype = 'S1').tobytes()
         self.name=self.name.lower().decode('ascii')
         self.dataunit = ""
         if unitsize > 0:
-            self.dataunit = numpy.fromstring(fp1.read(unitsize), dtype = 'S1').tostring().decode('ascii')
+            self.dataunit = numpy.frombuffer(fp1.read(unitsize), dtype = 'S1').tobytes().decode('ascii')
             
         self.sdef = ""
         if sdefsize > 0:
-            self.sdef = numpy.fromstring(fp1.read(sdefsize), dtype = 'S1').tostring().decode('ascii')
+            self.sdef = numpy.frombuffer(fp1.read(sdefsize), dtype = 'S1').tobytes().decode('ascii')
 
 
-        self.datapos = self.headerpos+self.headersize    
+        # headerpos is a Python file offset and headersize is int32.
+        # NumPy 2 will not add a value past 2**31-1 into int32.
+        self.datapos = int(self.headerpos) + int(self.headersize)    
         
         if self.datapos < fp1.tell():
             fp1.close()
@@ -780,27 +783,27 @@ class _EbfHeader:
         fp1.write(self.name)
         if len(self.name) < 100: 
             unused = numpy.zeros(100-len(self.name),  dtype = "int8")
-            fp1.write(unused.tostring('C'))    
+            fp1.write(unused.tobytes('C'))    
         version = numpy.array([1, 1], dtype = "int8")
-        fp1.write(version.tostring('C'))
+        fp1.write(version.tobytes('C'))
         unused = numpy.zeros(36,  dtype = "int8")
-        fp1.write(unused.tostring('C'))
-        fp1.write(self.endiantest.tostring('C'))
-        fp1.write(self.datatype.tostring('C'))
-        fp1.write(self.datasize.tostring('C'))
-        fp1.write(rank.tostring('C'))
+        fp1.write(unused.tobytes('C'))
+        fp1.write(self.endiantest.tobytes('C'))
+        fp1.write(self.datatype.tobytes('C'))
+        fp1.write(self.datasize.tobytes('C'))
+        fp1.write(rank.tobytes('C'))
         unused = numpy.zeros(32, dtype = "int8")
-        fp1.write(unused.tostring('C'))
+        fp1.write(unused.tobytes('C'))
         if self.dim.size == 0:
             dim = numpy.array(1, dtype = "int64")
-            fp1.write(dim.tostring('C'))
+            fp1.write(dim.tobytes('C'))
             unused = numpy.zeros(8*7, dtype = "int8")
-            fp1.write(unused.tostring('C'))            
+            fp1.write(unused.tobytes('C'))            
         else:
-            fp1.write(self.dim.tostring('C'))
+            fp1.write(self.dim.tobytes('C'))
             if self.dim.size < 8:
                 unused = numpy.zeros(8*(8-self.dim.size), dtype = "int8")
-                fp1.write(unused.tostring('C'))
+                fp1.write(unused.tobytes('C'))
 
     def __write11(self, fp1):
         """
@@ -816,16 +819,16 @@ class _EbfHeader:
         version = numpy.array([1, 1, 0, 0], dtype = "int8")
         
         if self.flagswap == 1:
-            temp=sig.tostring('C')+version.tostring('C')+self.endiantest.byteswap().tostring('C')
-            temp+=self.headersize.byteswap().tostring('C')+namesize.byteswap().tostring('C')+self.datatype.byteswap().tostring('C')
-            temp+=self.datasize.byteswap().tostring('C')+rank.byteswap().tostring('C')+unitsize.byteswap().tostring('C')+sdefsize.byteswap().tostring('C')
-            temp+=self.flags.tostring('C')+self.capacity_.byteswap().tostring('C')+self.dim.byteswap().tostring('C')
+            temp=sig.tobytes('C')+version.tobytes('C')+self.endiantest.byteswap().tobytes('C')
+            temp+=self.headersize.byteswap().tobytes('C')+namesize.byteswap().tobytes('C')+self.datatype.byteswap().tobytes('C')
+            temp+=self.datasize.byteswap().tobytes('C')+rank.byteswap().tobytes('C')+unitsize.byteswap().tobytes('C')+sdefsize.byteswap().tobytes('C')
+            temp+=self.flags.tobytes('C')+self.capacity_.byteswap().tobytes('C')+self.dim.byteswap().tobytes('C')
             temp+=self.name.encode('ascii')+self.dataunit.encode('ascii')+self.sdef.encode('ascii')
         else:
-            temp=sig.tostring('C')+version.tostring('C')+self.endiantest.tostring('C')
-            temp+=self.headersize.tostring('C')+namesize.tostring('C')+self.datatype.tostring('C')
-            temp+=self.datasize.tostring('C')+rank.tostring('C')+unitsize.tostring('C')+sdefsize.tostring('C')
-            temp+=self.flags.tostring('C')+self.capacity_.tostring('C')+self.dim.tostring('C')
+            temp=sig.tobytes('C')+version.tobytes('C')+self.endiantest.tobytes('C')
+            temp+=self.headersize.tobytes('C')+namesize.tobytes('C')+self.datatype.tobytes('C')
+            temp+=self.datasize.tobytes('C')+rank.tobytes('C')+unitsize.tobytes('C')+sdefsize.tobytes('C')
+            temp+=self.flags.tobytes('C')+self.capacity_.tobytes('C')+self.dim.tobytes('C')
             temp+=self.name.encode('ascii')+self.dataunit.encode('ascii')+self.sdef.encode('ascii')
         
         
@@ -837,7 +840,7 @@ class _EbfHeader:
         else:
             if extra>0:
                 temp1 = numpy.zeros(extra, dtype = "int8")+60
-                temp+=temp1.tostring()                
+                temp+=temp1.tobytes()                
             fp1.write(temp)            
 
         
@@ -930,14 +933,14 @@ class _EbfHeader:
 #        self.fields = fields
 
 #        if (self.rank == 1) & (self.dim[0] == 1) & (self.datatype != 8):    
-#            self.extra = numpy.array([45, 45, 45, 45, 60, -79, 62, -78], dtype = "int8").tostring()
+#            self.extra = numpy.array([45, 45, 45, 45, 60, -79, 62, -78], dtype = "int8").tobytes()
 #            self.unitsize = numpy.array(len(self.dataunit), dtype = "int32")
 #            self.version = numpy.array([1, 2, 0, 0], dtype = "int8")
 #            self.headersize = numpy.array((40 + len(self.name) + len(self.extra)), dtype = "int32")
 #        else:    
 #            temp = numpy.zeros(64, dtype = "int8")
 #            temp[56:64] = numpy.array([45, 45, 45, 45, 60, -79, 62, -78], dtype = "int8")
-#            self.extra = temp.tostring()
+#            self.extra = temp.tobytes()
 #            self.version = numpy.array([1, 1, 0, 0], dtype = "int8")
 #            self.headersize = numpy.array((44 + len(self.name) + len(self.dataunit) + len(self.extra) + 8 * self.rank), dtype = "int32")
 
@@ -985,7 +988,7 @@ class _EbfTable(object):
 
     def __read_hvalue(self,i):
         self.fp1.seek(self.data[2]+self.header['headersize']+self.header['datatypesize']*i,0)        
-        temp=numpy.fromstring(self.fp1.read(8),dtype='int64')[0]
+        temp=numpy.frombuffer(self.fp1.read(8),dtype='int64')[0]
         if self.flagswap == 1:
             return temp.byteswap()
         else:
@@ -994,13 +997,13 @@ class _EbfTable(object):
     def __write_hvalue(self,i,hvalue):
         self.fp1.seek(self.data[2]+self.header['headersize']+self.header['datatypesize']*i,0)        
         if self.flagswap == 1:
-            self.fp1.write(numpy.int64(hvalue).byteswap().tostring('C'))
+            self.fp1.write(numpy.int64(hvalue).byteswap().tobytes('C'))
         else:                                        
-            self.fp1.write(numpy.int64(hvalue).tostring('C'))            
+            self.fp1.write(numpy.int64(hvalue).tobytes('C'))            
         
     def __read_node(self,i):
         self.fp1.seek(self.data[2]+self.header['itempos']+i*self.header['itemsize'],0)
-        node=numpy.fromstring(self.fp1.read(self.header['itemsize']),dtype=_EbfTable.itype)
+        node=numpy.frombuffer(self.fp1.read(self.header['itemsize']),dtype=_EbfTable.itype).copy()
         if self.flagswap == 1:
             node=node.byteswap(True)
         return node[0]
@@ -1008,9 +1011,9 @@ class _EbfTable(object):
     def __write_node(self,i,item):
         self.fp1.seek(self.data[2]+self.header['itempos']+i*self.header['itemsize'],0)
         if self.flagswap == 1:
-            self.fp1.write(numpy.array(item).byteswap().tostring('C'))
+            self.fp1.write(numpy.array(item).byteswap().tobytes('C'))
         else:
-            self.fp1.write(item.tostring('C'))
+            self.fp1.write(item.tobytes('C'))
     
     def __read_key(self,item):
         self.fp1.seek(self.data[2]+self.header['keypos']+item['keyloc'],0)
@@ -1024,7 +1027,7 @@ class _EbfTable(object):
         if (self.data[1]>0)and(self.data[2]>0)and(self.data[3]==1):
             """ read header"""
             self.fp1.seek(self.data[2],0)
-            self.header=numpy.fromstring(self.fp1.read(_EbfTable.htype.itemsize),dtype=_EbfTable.htype)
+            self.header=numpy.frombuffer(self.fp1.read(_EbfTable.htype.itemsize),dtype=_EbfTable.htype).copy()
             if self.header['endiantest'] != 1684234849:
                 self.header=self.header.byteswap(True)
                 self.flagswap=1
@@ -1037,9 +1040,9 @@ class _EbfTable(object):
     def __write_header(self):
         self.fp1.seek(self.data[2],0)
         if self.flagswap == 1:
-            self.fp1.write(numpy.array(self.header).byteswap().tostring('C'))
+            self.fp1.write(numpy.array(self.header).byteswap().tobytes('C'))
         else:
-            self.fp1.write(self.header.tostring('C'))
+            self.fp1.write(self.header.tobytes('C'))
     
     def getKeyValsHT(self):
         """
@@ -1050,12 +1053,14 @@ class _EbfTable(object):
         keys=[]
         values=[]        
         self.fp1.seek(self.data[2]+self.header['headersize'],0);        
-        hvalue=numpy.fromstring(self.fp1.read(8*self.header['htcapacity']),dtype='int64')
+        hvalue=numpy.frombuffer(self.fp1.read(8*self.header['htcapacity']),dtype='int64')
         if self.flagswap == 1:
+            hvalue=hvalue.copy()
             hvalue=hvalue.byteswap(True)
         self.fp1.seek(self.data[2]+self.header['itempos'],0)
-        nodearr=numpy.fromstring(self.fp1.read(self.header['itemsize']*self.header['itemcapacity']),dtype=_EbfTable.itype)
+        nodearr=numpy.frombuffer(self.fp1.read(self.header['itemsize']*self.header['itemcapacity']),dtype=_EbfTable.itype)
         if self.flagswap == 1:
+            nodearr=nodearr.copy()
             nodearr=nodearr.byteswap(True)
         self.fp1.seek(self.data[2]+self.header['keypos'],0)
         keyarr=self.fp1.read(self.header['keycapacity'])                       
@@ -1153,7 +1158,7 @@ class _EbfTable(object):
             self.dpos=self.fp1.tell()
             if (self.ebfh.name == '/.ebf/info') & (self.ebfh.elements() >= 4) & (self.ebfh.datatype ==3):
                 """ get htable location """
-                self.data=numpy.fromstring(self.fp1.read(self.ebfh.capacity()),dtype=_TypeManager.itos_s(self.ebfh.datatype))
+                self.data=numpy.frombuffer(self.fp1.read(self.ebfh.capacity()),dtype=_TypeManager.itos_s(self.ebfh.datatype)).copy()
                 if self.ebfh.flagswap == 1:
                     self.data=self.data.byteswap(True)
                 self.__read_header()                                    
@@ -1242,7 +1247,9 @@ class _EbfTable(object):
 #        numpy.warnings.simplefilter("default",RuntimeWarning)
         old_settings=numpy.seterr(over='ignore')
         ehash=numpy.uint64(5381)
-        y=numpy.uint64(numpy.fromstring(mystr,dtype='int8'))    
+        if isinstance(mystr, str):
+            mystr = mystr.encode('latin1')
+        y=numpy.uint64(numpy.frombuffer(mystr,dtype='int8'))    
         for i in y:
             ehash=ehash*numpy.uint64(33)+i
         numpy.seterr(**old_settings)
@@ -1251,11 +1258,13 @@ class _EbfTable(object):
     @staticmethod
     def ebflthash1(mystr,capacity):
         ehash=numpy.uint64(5381)
-        y=numpy.uint64(numpy.fromstring(mystr,dtype='int8'))    
+        if isinstance(mystr, str):
+            mystr = mystr.encode('latin1')
+        y=numpy.uint64(numpy.frombuffer(mystr,dtype='int8'))    
         for i in y:
             ehash=ehash*numpy.uint64(33)+i
         return numpy.int64(ehash%numpy.uint64(capacity))    
-        
+
 
     @staticmethod
     def ebfckhash(mystr,hash1):
@@ -1264,7 +1273,9 @@ class _EbfTable(object):
             ehash=numpy.int64(5381)
         else:
             ehash=numpy.int64(hash1)
-        y=numpy.int64(numpy.fromstring(mystr,dtype='int8'))    
+        if isinstance(mystr, str):
+            mystr = mystr.encode('latin1')
+        y=numpy.int64(numpy.frombuffer(mystr,dtype='int8'))    
         for i in y:
             ehash=ehash*numpy.int64(33)+i
         numpy.seterr(**old_settings)
@@ -1348,7 +1359,7 @@ class _EbfTable(object):
             raise RuntimeError('EBF: error, /.ebf/info not found')        
 
         dpos_ck=fp1.tell()            
-        data=numpy.fromstring(fp1.read(ebfh.capacity()),dtype=_TypeManager.itos_s(ebfh.datatype))
+        data=numpy.frombuffer(fp1.read(ebfh.capacity()),dtype=_TypeManager.itos_s(ebfh.datatype)).copy()
         if ebfh.flagswap == 1:
             data=data.byteswap(True)
         
@@ -1365,17 +1376,17 @@ class _EbfTable(object):
         
         offset=fp1.tell()
         if(option == 1):
-            fp1.write(numpy.array(header).byteswap().tostring('C'))
-            fp1.write(table.byteswap().tostring('C'))
-            fp1.write(numpy.array(items).byteswap().tostring('C'))
+            fp1.write(numpy.array(header).byteswap().tobytes('C'))
+            fp1.write(table.byteswap().tobytes('C'))
+            fp1.write(numpy.array(items).byteswap().tobytes('C'))
             x=numpy.zeros(header['keycapacity'],dtype='int8')
-            fp1.write(x.byteswap().tostring('C'))        
+            fp1.write(x.byteswap().tobytes('C'))        
         else:
-            fp1.write(header.tostring('C'))
-            fp1.write(table.tostring('C'))
-            fp1.write(items.tostring('C'))
+            fp1.write(header.tobytes('C'))
+            fp1.write(table.tobytes('C'))
+            fp1.write(items.tobytes('C'))
             x=numpy.zeros(header['keycapacity'],dtype='int8')
-            fp1.write(x.tostring('C'))        
+            fp1.write(x.tobytes('C'))        
         offset1=fp1.tell()
             
         data[1]=location        
@@ -1383,9 +1394,9 @@ class _EbfTable(object):
         data[3]=1
         fp1.seek(dpos_ck)        
         if ebfh.flagswap == 1:
-            fp1.write(data.byteswap().tostring('C'))
+            fp1.write(data.byteswap().tobytes('C'))
         else:
-            fp1.write(data.tostring('C'))
+            fp1.write(data.tobytes('C'))
                         
         fp1.close()
         
@@ -1413,7 +1424,7 @@ class _EbfTable(object):
             data=numpy.zeros(5,dtype='int64')
             ebfh.create('/.ebf/info', data, '', '')
             ebfh.write(fp1)
-            fp1.write(data.tostring('C'))
+            fp1.write(data.tobytes('C'))
             fp1.close()
             _EbfTable.__create(filename,16,0)
             keys,values=_EbfTable.getKeyValsIT(filename)
@@ -1432,7 +1443,7 @@ class _EbfTable(object):
             ebfh.create('/.ebf/info', data, '', '')
             ebfh.flagswap=1
             ebfh.write(fp1)
-            fp1.write(data.byteswap().tostring('C'))
+            fp1.write(data.byteswap().tobytes('C'))
             fp1.close()
             _EbfTable.__create(filename,16,1)
             keys,values=_EbfTable.getKeyValsIT(filename)
@@ -1491,9 +1502,9 @@ class _EbfTable(object):
             fileht.fp1.seek(fileht.dpos,0)
             fileht.data[0]=cksum
             if fileht.ebfh.flagswap == 1:
-                fileht.fp1.write(fileht.data[0].byteswap().tostring('C'))
+                fileht.fp1.write(fileht.data[0].byteswap().tobytes('C'))
             else:
-                fileht.fp1.write(fileht.data[0].tostring('C'))
+                fileht.fp1.write(fileht.data[0].tobytes('C'))
                 
                 
         fileht.close()
@@ -2184,7 +2195,7 @@ def read(filename, path = '/' ,recon=0,ckon=1,begin=0,end=None):
                     header.dim = header.dim[0:len(header.dim)-1]
                 
                 
-            x = numpy.fromstring(fp1.read(block_size), dtype = dth1)
+            x = numpy.frombuffer(fp1.read(block_size), dtype = dth1).copy()
             if header.flagswap == 1:
                 x = x.byteswap(True)
             x = x.reshape(header.getshape())
@@ -2400,7 +2411,7 @@ def write(filename, tagname, data, mode, dataunit = ""):
             location=fp1.tell()
             header.write(fp1)        
             
-        fp1.write(data.tostring('C'))
+        fp1.write(data.tobytes('C'))
         fp1.close()
         if (mode1 == 'ab'):
             _EbfTable.put(filename,tagname,location)
@@ -2634,7 +2645,7 @@ def update_ind(filename,dataname,data,ind=None):
 
             fp1.seek(datalocation, 0)            
             if allset:
-                fp1.write(data.tostring('C'))
+                fp1.write(data.tobytes('C'))
             else:
                 icur=0    
                 inda=numpy.argsort(ind)
@@ -2643,7 +2654,7 @@ def update_ind(filename,dataname,data,ind=None):
                         fp1.seek(datalocation+ind[i]*header.datasize*data[0].size, 0)
                         icur=ind[i]
                     # to handle strings [i:i+1] needed instead of [i]
-                    fp1.write(data[i:i+1].tostring('C'))
+                    fp1.write(data[i:i+1].tobytes('C'))
                     icur+=1
                 
         finally:
@@ -2789,8 +2800,9 @@ class EbfFile():
             if self.begin>= self.end:
                 self.begin=self.end-1
             self.fp.seek(self.datalocation+self.begin*self.datasize, 0)
-            self.x = numpy.fromstring(self.fp.read((self.end-self.begin)*self.datasize), dtype = self.dtype)
+            self.x = numpy.frombuffer(self.fp.read((self.end-self.begin)*self.datasize), dtype = self.dtype)
             if self.header.flagswap == 1:
+                self.x = self.x.copy()
                 self.x = self.x.byteswap(True)
 
             if self.rank > 1:
@@ -2863,12 +2875,12 @@ class EbfFile():
                 if data.dtype != self.datatype:
                     try:
                         temp=numpy.array(data,dtype=self.datatype)
-                        self.fp.write(temp.tostring('C'))
+                        self.fp.write(temp.tobytes('C'))
                     except:
                         self.close()
                         raise RuntimeError("EbfFile.write() error: Cannot convert types")
                 else:
-                    self.fp.write(data.tostring('C'))
+                    self.fp.write(data.tobytes('C'))
             else:
                 raise RuntimeError("EbfFile.write() error: file is closed")
             
@@ -2882,7 +2894,7 @@ class EbfFile():
                 bufsize=datawritten%(temp*self.header.datasize)
                 if bufsize > 0:     
                     x=numpy.zeros(bufsize,dtype='int8')
-                    self.fp.write(x.tostring('C'))
+                    self.fp.write(x.tobytes('C'))
                     datawritten=datawritten+bufsize
                 self.header.dim[0]=datawritten/(temp*self.header.datasize)
                 if datawritten == 0:
@@ -3208,7 +3220,7 @@ def cat(filename, tagname,delimiter=' ',tableon=0):
                     formatstring="{0:<"+str(width)+"}"
                     temp=formatstring.format(str.rpartition(key1,'/')[2])+'= '
                     if(datat[key1].dtype.type==numpy.string_):
-                        datat1=datat[key1].tostring()
+                        datat1=datat[key1].tobytes()
                     else:
                         datat1=numpy.array_str(numpy.squeeze(datat[key1]))                    
                     if len(temp)+len(datat1) > 64:
@@ -3221,7 +3233,7 @@ def cat(filename, tagname,delimiter=' ',tableon=0):
                 formatstring="{0:<"+str(width)+"}"
                 temp=formatstring.format(str.rpartition(key,'/')[2])+'= '
                 if(datat.dtype.type==numpy.string_):
-                    datat=datat.tostring()
+                    datat=datat.tobytes()
                     datalen=1
                 else:
                     datat=numpy.squeeze(datat)
@@ -3295,10 +3307,12 @@ def swapEndian(filename):
         dblock_size=header1.elements()*header1.datasize    
         
         if ((header1.name.startswith('/.ebf/')==False) and (header1.name.startswith('/.tr/')==False)):                  
-            data = numpy.fromstring(fp1.read(dblock_size), dtype = dth1)
+            data = numpy.frombuffer(fp1.read(dblock_size), dtype = dth1)
             if (header1.flagswap == 1) and (flagswap==0):
+                data = data.copy()
                 data = data.byteswap(True)
             if (header1.flagswap == 0) and (flagswap==1):
+                data = data.copy()
                 data = data.byteswap(True)
                 
             if header1.datatype == 1:
@@ -3313,7 +3327,7 @@ def swapEndian(filename):
             keys.append(header2.name)
             values.append(fout.tell())
             header2.write(fout)            
-            fout.write(data.tostring('C'))
+            fout.write(data.tobytes('C'))
                         
         fp1.seek(loc+header1.capacity(), 0)                
         
@@ -3492,8 +3506,8 @@ def diff(filename1,filename2):
     count_match=0
     for key in keys1:
         if keys2.count(key) == 1:
-            data1=read(filename1,key).tostring() 
-            data2=read(filename2,key).tostring()
+            data1=read(filename1,key).tobytes() 
+            data2=read(filename2,key).tobytes()
             if data1 != data2:
                 print('data item->',key,' differs')
                 count_differ=count_differ+1
@@ -3686,7 +3700,7 @@ class _ebf_test(unittest.TestCase):
         print("Testing string read/write-->")
         x = "ebcdefgh"
         write("check.ebf", "/mystr", numpy.array(x), "w")      
-        y = read("check.ebf", "/mystr").tostring()
+        y = read("check.ebf", "/mystr").tobytes()
         self.assertEqual(x, y)
         x = numpy.array(['aa','ba','ca','da'])
         write("check.ebf", "/mystr", x, "w")      
@@ -3765,7 +3779,7 @@ class _ebf_test(unittest.TestCase):
         keys = ["x1", "x2", "x3", "x4", "x5", "x6", "x9", "x10", "x11", "x12", "x13"]
         x=numpy.arange(0,128,dtype='int8')
         data["x1"]  =  numpy.array(x)
-#        data["x1"]  =  numpy.fromstring(x.tostring(),dtype='S1')
+#        data["x1"]  =  numpy.frombuffer(x.tobytes(),dtype='S1')
         data["x9"] = numpy.arange(-128, 0, dtype = 'int8')
         data["x6"] = numpy.arange(-256, -256-128,-1, dtype = 'int16')
         data["x2"] = numpy.arange(-65636, -65636-128,-1, dtype = "int32")
@@ -3850,7 +3864,7 @@ class _ebf_test(unittest.TestCase):
         keys = ["x1", "x2", "x3", "x4", "x5", "x6", "x9", "x10", "x11", "x12", "x13"]
         x=numpy.arange(0,128,dtype='int8')
         data["x1"]  =  numpy.array(x)
-#        data["x1"]  =  numpy.fromstring(x.tostring(),dtype='S1')
+#        data["x1"]  =  numpy.frombuffer(x.tobytes(),dtype='S1')
         data["x9"] = numpy.arange(-128, 0, dtype = 'int8')
         data["x6"] = numpy.arange(-256, -256-128,-1, dtype = 'int16')
         data["x2"] = numpy.arange(-65636, -65636-128,-1, dtype = "int32")
@@ -4062,7 +4076,7 @@ class _ebf_test(unittest.TestCase):
         keys = ["x1", "x2", "x3", "x4", "x5", "x6", "x9", "x10", "x11", "x12", "x13"]
         x=numpy.arange(0,128,dtype='int8')
         data["x1"]  =  numpy.array(x)
-#        data["x1"]  =  numpy.fromstring(x.tostring(),dtype='S1')
+#        data["x1"]  =  numpy.fromstring(x.tobytes(),dtype='S1')
         data["x9"] = numpy.arange(-128, 0, dtype = 'int8')
         data["x6"] = numpy.arange(-256, -256-128,-1, dtype = 'int16')
         data["x2"] = numpy.arange(-65636, -65636-128,-1, dtype = "int32")
