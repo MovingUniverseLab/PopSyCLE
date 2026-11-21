@@ -4956,7 +4956,8 @@ def _convert_photometric_99_to_nan(table, photometric_system='ubv'):
 
 
 def _check_refine_events(input_root, filter_dict, red_law, overwrite, output_file, 
-                         hdf5_file_comp, legacy, seed, filter_name=None, photometric_system=None):
+                         hdf5_file_comp, legacy, seed, filter_name=None, photometric_system=None,
+                         n_proc=1, multi_proc=True):
     """
     Checks that the inputs of refine_events are valid
 
@@ -4999,6 +5000,18 @@ def _check_refine_events(input_root, filter_dict, red_law, overwrite, output_fil
 
     photometric_system : str, optional, DEPRECATED
         The name of the photometric system in which the filter exists.
+
+    n_proc : int, optional
+        Number of processors to use. Should not exceed the number of cores.
+        Default is one processor (no parallelization).
+        (only relevant for companions)
+    
+    multi_proc : bool, optional
+        Even if n_proc = 1, a pool is still created. If multi_proc = False,
+        instead there is just a for-loop to generate and analyze the lightcurves.
+        If multi_proc == False, n_proc must = 1.
+        Default is True.
+        (only relevant for companions)
     """
 
     if not isinstance(input_root, str):
@@ -5050,6 +5063,12 @@ def _check_refine_events(input_root, filter_dict, red_law, overwrite, output_fil
         
     if (filter_name is None) ^ (photometric_system is None):
         raise Exception('Either filter_name or photometric_system was provided without the other. Please provide both')
+            
+    if not isinstance(n_proc, int):
+        raise Exception('n_proc (%s) must be an integer.' % str(seed))
+    
+    if not isinstance(multi_proc, bool):
+        raise Exception('multi_proc (%s) must be a boolean.' % str(multi_proc))
 
     # Check to see that the filter dictionary, and red_law are valid
     if (filter_name is not None) and (photometric_system is not None):
@@ -5088,7 +5107,7 @@ def _check_refine_events(input_root, filter_dict, red_law, overwrite, output_fil
 
 def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_name = None, photometric_system = None,
                   overwrite=False, output_file='default', hdf5_file_comp=None, legacy = False, seed = None, 
-                  galactic_model_code = 'galaxia'):
+                  galactic_model_code = 'galaxia', n_proc=1, multi_proc=True):
     """
     Takes the output Astropy table from calc_events, and from that
     calculates the time of closest approach. Will also return source-lens
@@ -5143,6 +5162,18 @@ def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_n
 
     photometric_system : str, optional, DEPRECATED
         The name of the photometric system in which the filter exists.
+
+    n_proc : int, optional
+        Number of processors to use. Should not exceed the number of cores.
+        Default is one processor (no parallelization).
+        (only relevant for companions)
+    
+    multi_proc : bool, optional
+        Even if n_proc = 1, a pool is still created. If multi_proc = False,
+        instead there is just a for-loop to generate and analyze the lightcurves.
+        If multi_proc == False, n_proc must = 1.
+        Default is True.
+        (only relevant for companions)
 
     Returns
     -------
@@ -5337,9 +5368,6 @@ def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_n
             header['filters'] = filters_string
     
     
-
-    
-    
     # If Multiples
     if hdf5_file_comp is not None:
         hf_comp = h5py.File(hdf5_file_comp, 'r')
@@ -5351,80 +5379,23 @@ def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_n
         event_tab_S = copy.deepcopy(event_table).set_index('obj_id_S')
         # Loops through the non-metadata parts of hf_comp square by square
         # so the memory isn't overwhelmed
-        for ii in np.hstack((hf_comp)):
-            if ii != 'galaxyModelFile' and ii != 'lat_bin_edges' and ii != 'long_bin_edges':
-                
-                print('On square {}'.format(ii))
-                
-                patch_comp = np.hstack((hf_comp[ii],))
-                if len(patch_comp) == 0:
-                    continue
-                    
-                patch_comp_df = pd.DataFrame(data = patch_comp, columns = np.dtype(patch_comp[0]).names)
-                
-                # deletes patch so memory not overwhelmed
-                del patch_comp
-                
-                #set the table to be indexed on system_idx
-                #so that they can be joined based on those indices
-                #event tables set to be indexed on obj_id_L, and obj_id_S above loop
-                patch_comp_df = patch_comp_df.set_index('system_idx')
-                
-                patch_comp_df_columns = ['system_idx'] + list(patch_comp_df.columns) + ['obj_id_L', 'obj_id_S', 'prim_type']
-                
-                # only keeps columns where system is associated with a lens or source respectively
-                patch_comp_L = patch_comp_df.join(event_tab_L, lsuffix='_comp', rsuffix='_prim', how='inner')
-                patch_comp_S = patch_comp_df.join(event_tab_S, lsuffix='_comp', rsuffix='_prim', how='inner')
-                
-                # deletes patch so memory not overwhelmed
-                del patch_comp_df
-                
-                # FIX ME: Memory could potentially be cleaned up here.
-                # Reset index adds obj_id_L back as its own column
-                # indexing on patch_comp_df_columns means that it only takes columns that were in the primary event table
-                patch_comp_L['prim_type'] = "L"
-                patch_comp_L['obj_id_L'] = (patch_comp_L.index).astype('float64')
-                patch_comp_L['obj_id_S'] = (patch_comp_L['obj_id_S']).astype('float64')
-                # In newer pandas versions name of index is maintained
-                if patch_comp_L.index.name != 'system_idx':
-                    patch_comp_L['system_idx'] = patch_comp_L.index
-                if len(patch_comp_L) > 0:
-                    patch_comp_L = patch_comp_L.reset_index()[patch_comp_df_columns]
-                
-                patch_comp_S['prim_type'] = "S"
-                patch_comp_S['obj_id_S'] = (patch_comp_S.index).astype('float64')
-                patch_comp_S['obj_id_L'] = (patch_comp_S['obj_id_L']).astype('float64')
-                # In newer pandas versions name of index is maintained
-                if patch_comp_S.index.name != 'system_idx':
-                    patch_comp_S['system_idx'] = patch_comp_S.index
-                if len(patch_comp_S) > 0:
-                    patch_comp_S = patch_comp_S.reset_index()[patch_comp_df_columns]
-
-                #For first time companion table is being created
-                if len(companion_table) == 0:
-                    if len(patch_comp_L) > 0:
-                        companion_table = patch_comp_L
-                        if len(patch_comp_S) > 0:
-                            companion_table = pd.concat([companion_table, patch_comp_S], ignore_index=True)
-                            #continue
-                    elif len(patch_comp_S) > 0:
-                        companion_table = patch_comp_S
-                        #continue
-                # For not first-time, appending       
-                else:
-                    # Appends them to companion table
-                    # if-statement necessary because dtype of prim_type column doesn't change
-                    # if the table is empty
-                    if len(patch_comp_L) > 0:
-                        companion_table = pd.concat([companion_table, patch_comp_L], ignore_index=True)
-                    if len(patch_comp_S) > 0:
-                        companion_table = pd.concat([companion_table, patch_comp_S], ignore_index=True)
-                 
-                # deletes patch so memory not overwhelmed
-                del patch_comp_L
-                del patch_comp_S
-        hf_comp.close()
+        loop_inputs = [(ii, np.hstack((hf_comp[ii],)), event_tab_L, event_tab_S) 
+                                 for ii in np.hstack((hf_comp)) if ii not 
+                                 in ['galaxyModelFile', 'lat_bin_edges', 'long_bin_edges']]
         
+        if multi_proc:
+            pool = Pool(n_proc)
+            results = pool.starmap(_refine_events_companion_table_loop, loop_inputs)
+            # Multi-Threaded: clean up pool
+            pool.close()
+            pool.join()
+        else:
+            results = []
+            for i, input in enumerate(loop_inputs):
+                results.append(_refine_events_companion_table_loop(*input))
+
+        hf_comp.close()
+        companion_table = pd.concat(results, ignore_index=True)        
         
         if len(companion_table) > 0:
             
@@ -5493,6 +5464,60 @@ def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_n
 
     print('refine_events runtime : {0:f} s'.format(t_1 - t_0))
     return
+
+def _refine_events_companion_table_loop(ii, patch_comp, event_tab_L, event_tab_S):
+    """
+    Function to retrieve companion info for each spatial bin, separated out
+    for parallelization.
+    """
+    print('On square {}'.format(ii))
+    if len(patch_comp) == 0:
+        return pd.DataFrame()
+                    
+    patch_comp_df = pd.DataFrame(data = patch_comp, columns = np.dtype(patch_comp[0]).names)
+    # deletes patch so memory not overwhelmed
+    del patch_comp
+                
+    #set the table to be indexed on system_idx
+    #so that they can be joined based on those indices
+    #event tables set to be indexed on obj_id_L, and obj_id_S above loop
+    patch_comp_df = patch_comp_df.set_index('system_idx')
+                
+    patch_comp_df_columns = ['system_idx'] + list(patch_comp_df.columns) + ['obj_id_L', 'obj_id_S', 'prim_type']
+                
+    # only keeps columns where system is associated with a lens or source respectively
+    patch_comp_L = patch_comp_df.join(event_tab_L, lsuffix='_comp', rsuffix='_prim', how='inner')
+    patch_comp_S = patch_comp_df.join(event_tab_S, lsuffix='_comp', rsuffix='_prim', how='inner')
+                
+    # deletes patch so memory not overwhelmed
+    del patch_comp_df
+                
+    # FIX ME: Memory could potentially be cleaned up here.
+    # Reset index adds obj_id_L back as its own column
+    # indexing on patch_comp_df_columns means that it only takes columns that were in the primary event table
+    patch_comp_L['prim_type'] = "L"
+    patch_comp_L['obj_id_L'] = (patch_comp_L.index).astype('float64')
+    patch_comp_L['obj_id_S'] = (patch_comp_L['obj_id_S']).astype('float64')
+    # In newer pandas versions name of index is maintained
+    if patch_comp_L.index.name != 'system_idx':
+        patch_comp_L['system_idx'] = patch_comp_L.index
+    patch_comp_L = patch_comp_L.reset_index()[patch_comp_df_columns]
+                
+    patch_comp_S['prim_type'] = "S"
+    patch_comp_S['obj_id_S'] = (patch_comp_S.index).astype('float64')
+    patch_comp_S['obj_id_L'] = (patch_comp_S['obj_id_L']).astype('float64')
+    # In newer pandas versions name of index is maintained
+    if patch_comp_S.index.name != 'system_idx':
+        patch_comp_S['system_idx'] = patch_comp_S.index
+    patch_comp_S = patch_comp_S.reset_index()[patch_comp_df_columns]
+
+    companion_table = pd.concat([patch_comp_L, patch_comp_S], ignore_index=True)
+                 
+    # deletes patch so memory not overwhelmed
+    del patch_comp_L
+    del patch_comp_S
+
+    return companion_table
 
 
 def calc_closest_approach(event_tab, survey_duration):

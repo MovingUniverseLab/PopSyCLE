@@ -567,6 +567,8 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
                           n_cores_perform_pop_syn = 1,
                           n_cores_calc_events = 1,
                           n_cores_synthpop = 1,
+                          n_cores_refine_events = 1,
+                          multi_proc_refine_events = True,
                           n_cores_refine_binary_events = 1,
                           multi_proc_refine_binary_events = True,
                           jobname='default',
@@ -657,6 +659,17 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
     n_cores_calc_events : int, optional
         Number of cores for executing synthetic.calc_events
         Default is 1.
+
+    n_cores_refine_events : int, optional
+        Number of cores for executing synthetic.refine_events
+        to process companions.
+        Default is 1.
+
+    multi_proc_refine_events : bool, optional
+        Even if n_proc = 1, a pool is still created. If multi_proc = False,
+        instead there is just a for-loop to generate and analyze the lightcurves.
+        If multi_proc == False, n_proc must = 1.
+        Default is True.
         
     n_cores_refine_binary_events : int, optional
         Number of cores for executing synthetic.refine_binary_events
@@ -764,6 +777,7 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
     # Create n_cores dict
     n_cores_popsycle = {'n_cores_perform_pop_syn' : n_cores_perform_pop_syn,
                         'n_cores_calc_events' : n_cores_calc_events,
+                        'n_cores_refine_events' : n_cores_refine_events,
                         'n_cores_refine_binary_events' : n_cores_refine_binary_events}
     
     # Prepare additional_photometric_systems
@@ -876,6 +890,8 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
                              legacy=False,
                              output_file='default',
                              hdf5_file_comp=hdf5_file_comp,
+                             n_proc=n_cores_refine_events,
+                             multi_proc=multi_proc_refine_events,
                              seed=seed, )
     if not skip_refine_binary_events:
         # refined_events_filename defaults to using multi_filt, 
@@ -1008,6 +1024,10 @@ exit $exitcode
     
     if not skip_calc_events:
         optional_cmds += '--n-cores-calc-events={} '.format(n_cores_calc_events)
+
+    if not skip_refine_binary_events:
+        optional_cmds += '--n-cores-refine-events={} '.format(n_cores_refine_events)
+        optional_cmds += '--multi-proc-refine-events={} '.format(multi_proc_refine_events)
     
     if not skip_refine_binary_events:
         optional_cmds += '--n-cores-refine-binary-events={} '.format(n_cores_refine_binary_events)
@@ -1165,6 +1185,8 @@ def run(output_root='root0',
         n_cores_perform_pop_syn=1,
         n_cores_calc_events=1,
         n_cores_synthpop=1,
+        n_cores_refine_events=1,
+        multi_proc_refine_events=True,
         n_cores_refine_binary_events=1,
         multi_proc_refine_binary_events=True,
         verbose=0,
@@ -1320,6 +1342,8 @@ def run(output_root='root0',
                              legacy=False,
                              output_file='default',
                              hdf5_file_comp=hdf5_file_comp,
+                             n_proc=n_cores_refine_binary_events,
+                             multi_proc=multi_proc_refine_binary_events,
                              seed=seed)
     if not skip_refine_binary_events:
         # refined_events_filename defaults to using multi_filt, 
@@ -1467,6 +1491,8 @@ def run(output_root='root0',
                                 output_file='default',
                                 hdf5_file_comp=hdf5_file_comp,
                                 seed=seed,
+                                n_proc=n_cores_refine_events,
+                                multi_proc=multi_proc_refine_events,
                                 galactic_model_code = galactic_model_code)
 
     if multiplicity is not None and not skip_refine_binary_events:
@@ -1591,6 +1617,8 @@ def main():
         n_cores_perform_pop_syn=args.n_cores_perform_pop_syn,
         n_cores_calc_events=args.n_cores_calc_events,
         n_cores_synthpop=args.n_cores_synthpop,
+        n_cores_refine_events=args.n_cores_refine_events,
+        multi_proc_refine_events=args.multi_proc_refine_events,
         n_cores_refine_binary_events=args.n_cores_refine_binary_events,
         multi_proc_refine_binary_events=args.multi_proc_refine_binary_events,
         seed=args.seed,
