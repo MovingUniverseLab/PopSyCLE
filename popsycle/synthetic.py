@@ -6805,7 +6805,10 @@ def lightcurve_parameter_gen(model, model_parameter_dict, comp_idxs, obj_id_L, o
     tmax = model.t0 + (duration / 2.0)
     dt = np.linspace(tmin, tmax, time_steps)
     
-    if 'get_all_arrays' in dir(model):
+    # Binary-lens models (PSBL, BSBL) can reuse precomputed amplifications.
+    # BAGLE now gives every model a get_all_arrays(), so check for amp_arr
+    # support directly rather than for get_all_arrays.
+    if 'amp_arr' in inspect.signature(model.get_photometry).parameters:
         img, amp = model.get_all_arrays(dt)
         phot = model.get_photometry(dt, amp_arr=amp)
     else: #BSPL
