@@ -1025,7 +1025,7 @@ exit $exitcode
     if not skip_calc_events:
         optional_cmds += '--n-cores-calc-events={} '.format(n_cores_calc_events)
 
-    if not skip_refine_binary_events:
+    if not skip_refine_events:
         optional_cmds += '--n-cores-refine-events={} '.format(n_cores_refine_events)
         optional_cmds += '--multi-proc-refine-events={} '.format(multi_proc_refine_events)
     
