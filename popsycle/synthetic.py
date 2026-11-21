@@ -5852,14 +5852,14 @@ def _add_binary_angles(companion_table, event_table, n_proc):
     
     if n_proc>1:
         pool = Pool(n_proc)
-        results = pool.starmap(calculate_binary_angles, loop_inputs)
+        results = pool.starmap(calculate_binary_angles_row, loop_inputs)
         # Multi-Threaded: clean up pool
         pool.close()
         pool.join()
     else:
         results = []
         for i, input in enumerate(loop_inputs):
-            results.append(calculate_binary_angles(*input))
+            results.append(calculate_binary_angles_row(*input))
 
     results = np.array(results)
     alphas, phi_pi_Es, phis, tps = results[:,0], results[:,1], results[:,2], results[:,3]
@@ -5878,9 +5878,166 @@ def _add_binary_angles(companion_table, event_table, n_proc):
     del companion_tmp_df_joined
     return companion_tmp_df
 
-def calculate_binary_angles(index, row):
+def calculate_binary_angles_row(index, row):
     """
-    TODO: UPDATE DOCSTRING IF I KEEP MY CHANGES IN
+    * Calculates the following angles for a single event companion:
+    
+        * alpha: angle between North and binary axis (East of North)
+        * phi_pi_E: angle between North and proper motion vector (East of North)
+        * phi: angle between the proper motion and the binary axis
+    
+    * Each set of angles is for the source if the companion is 
+      assocaited with the source or the lens if the companion is associated with the lens.
+    * Binary parameters established in a galactic spherical coordinate systems.
+    * Big Omega measured from galactic north increasing in the direction of galactic east (positive l).
+    
+    Parameters
+    ----------
+    index : label
+        row index in the joint companion and event table on obj_id_L and obj_id_S
+    row : Series
+        single event companion row from the joint companion and event table
+
+    Returns
+    -------
+    alpha : float
+        Angle between North and binary axis (East of North)
+    phi_pi_E : float
+        Angle between North and proper motion vector (East of North)
+    phi : float
+        Angle between the proper motion and the binary axis (phi_pi_E - alpha)
+    tps : float
+    
+    """
+            
+    # At the end of refine events prim_type is encoded in bytes
+    # so we need to decode it to strings
+    # if we feed in a table from and alternate location
+    prim_type = row['prim_type']
+    if type(prim_type) == bytes:
+        prim_type = prim_type.decode("utf-8") 
+        
+    if prim_type == 'L':
+        not_prim_type = 'S'
+    else:
+        not_prim_type = 'L'
+    
+    # First calculate binary axis
+    orb = orbits.Orbit()
+    orb.w = row['omega'] # [degrees]
+    orb.o = row['Omega'] # [degrees]
+    orb.i = row['i'] # [degrees]
+    orb.e = row['e'] # float between 0 and 1
+    orb.p = row['P'] # [years]
+    orb.t0 = np.random.rand()*row['P'] + row['t0'] # [years] This is initial
+    orb.mass = row['systemMass_{}'.format(prim_type)] # [Msun]
+
+    tp = orb.t0
+    
+    # Position of the companion when primary at origin
+    # r[0][0] is galactic east
+    # r[0][1] is galactic north
+    # r[0][2] is line of sight away from the sun
+    # Assumes the primary is at the origin (0,0)
+    
+    (r, v, a) = orb.kep2xyz(np.array([row['t0']]))
+
+    r_kpc = np.array([(ii*unit.AU).to('kpc').value for ii in r[0]])
+    
+    r_mas = (np.arcsin(r_kpc[0:2]/row['rad_{}'.format(prim_type)])*unit.radian).to('mas').value
+    
+    # Change in positional offset (b and lcosb) from companion to the primary 
+    # pointing to companion (assuming primary at 0,0)
+    deltaz_lcosb = r_mas[0]
+    deltaz_b = r_mas[1]
+    
+    #b and l of primary
+    z1_b = row['glat_{}'.format(prim_type)]*unit.degree
+    z1_l = row['glon_{}'.format(prim_type)]*unit.degree
+    
+    
+    deltaz_l = deltaz_lcosb/np.cos(np.deg2rad(z1_b)) #Need to find the spherical l instead of projected for SkyCoord
+    
+    #add positions of the primary to the deltas to find b and l of companion
+    z2_b = (deltaz_b*unit.mas + z1_b.to('mas')).to('degree')
+    z2_l = (deltaz_l*unit.mas + z1_l.to('mas')).to('degree')
+    
+    #b and l of primary of system companion not part of
+    not_prim_b = row['glat_{}'.format(not_prim_type)]*unit.degree
+    not_prim_l = row['glon_{}'.format(not_prim_type)]*unit.degree
+    
+    #SkyCoord objects for the primary, companion, and primary of system companion not part of
+    coord_object_z1 = SkyCoord(l = z1_l, b = z1_b, 
+                               pm_l_cosb = row['mu_lcosb_{}'.format(prim_type)]*unit.mas/unit.year, 
+                               pm_b = row['mu_b_{}'.format(prim_type)]*unit.mas/unit.year, 
+                               frame ='galactic')
+    
+    coord_object_z2 = SkyCoord(l = z2_l, b = z2_b, 
+                               pm_l_cosb = row['mu_lcosb_{}'.format(prim_type)]*unit.mas/unit.year, 
+                               pm_b = row['mu_b_{}'.format(prim_type)]*unit.mas/unit.year, 
+                               frame ='galactic')
+    
+    coord_object_not_prim = SkyCoord(l = not_prim_l, b = not_prim_b, 
+                                     pm_l_cosb = row['mu_lcosb_{}'.format(not_prim_type)]*unit.mas/unit.year, 
+                                     pm_b = row['mu_b_{}'.format(not_prim_type)]*unit.mas/unit.year, frame ='galactic')
+
+    #ra and dec of primary, find racosdec to find projected coords
+    z1_ra = coord_object_z1.icrs.ra.value
+    z1_dec = coord_object_z1.icrs.dec.value
+    z1_racosdec = z1_ra*np.cos(np.deg2rad(z1_dec))
+    
+    #ra and dec of companion, find racosdec to find projected coords
+    z2_ra = coord_object_z2.icrs.ra.value
+    z2_dec = coord_object_z2.icrs.dec.value
+    z2_racosdec = z2_ra*np.cos(np.deg2rad(z2_dec))
+    
+    #Find change in dec and racosdec companion - primary (so vector is pointed at companion)
+    deltaz_dec = z2_dec - z1_dec
+    deltaz_racosdec = (z2_ra - z1_ra)*np.cos(np.deg2rad(z1_dec)) #z2_racosdec - z1_racosdec
+    
+    
+    #Proper motions of the primary, comanion, and source in racosdec and dec
+    mu_racosdec_z1 = coord_object_z1.icrs.pm_ra_cosdec.value
+    mu_dec_z1 = coord_object_z1.icrs.pm_dec.value
+    
+    mu_racosdec_z2 = coord_object_z2.icrs.pm_ra_cosdec.value
+    mu_dec_z2 = coord_object_z2.icrs.pm_dec.value
+    
+    mu_racosdec_not_prim = coord_object_not_prim.icrs.pm_ra_cosdec.value
+    mu_dec_not_prim = coord_object_not_prim.icrs.pm_dec.value
+    
+    #Relative proper motion between the primary and companion
+    #delta_mu_racosdec.append(np.abs(mu_racosdec_z1 - mu_racosdec_z2))
+    #delta_mu_dec.append(np.abs(mu_dec_z1 - mu_dec_z2))
+    
+    if np.abs(mu_racosdec_z1 - mu_racosdec_z2) > 0.01 or np.abs(mu_dec_z1 - mu_dec_z2) > 0.01:
+        print('***************** WARNING ******************')
+        print('Discrepancy between companion and primary proper motion components > 0.01 mas/year')
+        print('********************************************')
+        print('mu_racosdec_z1', mu_racosdec_z1)
+        print('mu_racosdec_z2', mu_racosdec_z2)
+        print('mu_dec_z1', mu_dec_z1)
+        print('mu_dec_z2', mu_dec_z2)
+
+    #Relative proper motion between primary and system companion not part of
+    mu_racosdec_rel = mu_racosdec_not_prim - mu_racosdec_z1
+    mu_dec_rel = mu_dec_not_prim - mu_dec_z1
+    
+    
+    # Since deltaz is pointed toward the companion, subtract 180 degrees mod 360 to find alpha
+    alpha = (np.rad2deg(np.arctan2(deltaz_racosdec,deltaz_dec)) - 180) % 360
+    
+    # Mod 360 so it'll be in the same range as alpha
+    phi_pi_E = np.rad2deg(np.arctan2(mu_racosdec_rel,mu_dec_rel)) % 360
+    
+    phi = (alpha - phi_pi_E) % 360
+    
+    return alpha, phi_pi_E, phi, tp
+
+def calculate_binary_angles(joined_table):
+    """
+    [No longer used by refine_events, should we deprecate?]
+
     * Calculates the following angles to the companion array:
     
         * alpha: angle between North and binary axis (East of North)
@@ -5908,12 +6065,12 @@ def calculate_binary_angles(index, row):
     
     
     """
-    # alphas = []
-    # phi_pi_Es = []
-    # phis = []
-    # tps = []
+    alphas = []
+    phi_pi_Es = []
+    phis = []
+    tps = []
     
-    if True: #for index, row in joined_table.iterrows():
+    for index, row in joined_table.iterrows():
         
         # At the end of refine events prim_type is encoded in bytes
         # so we need to decode it to strings
@@ -5937,7 +6094,8 @@ def calculate_binary_angles(index, row):
         orb.t0 = np.random.rand()*row['P'] + row['t0'] # [years] This is initial
         orb.mass = row['systemMass_{}'.format(prim_type)] # [Msun]
 
-        tp = orb.t0
+        tps.append(orb.t0)
+        
         
         # Position of the companion when primary at origin
         # r[0][0] is galactic east
@@ -6037,11 +6195,11 @@ def calculate_binary_angles(index, row):
         
         phi = (alpha - phi_pi_E) % 360
         
-        # alphas.append(alpha)
-        # phi_pi_Es.append(phi_pi_E)
-        # phis.append(phi)
+        alphas.append(alpha)
+        phi_pi_Es.append(phi_pi_E)
+        phis.append(phi)
     
-    return alpha, phi_pi_E, phi, tp
+    return alphas, phi_pi_Es, phis, tps
 
 def _add_multiples_parameters(companion_table, event_table):
     """
