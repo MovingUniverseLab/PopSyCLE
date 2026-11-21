@@ -1342,8 +1342,8 @@ def run(output_root='root0',
                              legacy=False,
                              output_file='default',
                              hdf5_file_comp=hdf5_file_comp,
-                             n_proc=n_cores_refine_binary_events,
-                             multi_proc=multi_proc_refine_binary_events,
+                             n_proc=n_cores_refine_events,
+                             multi_proc=multi_proc_refine_events,
                              seed=seed)
     if not skip_refine_binary_events:
         # refined_events_filename defaults to using multi_filt, 
@@ -1560,13 +1560,22 @@ def main():
                                'function. '
                                'Default is --n-cores=1 or serial processing.',
                           default=1)
+    optional.add_argument('--n-cores-refine-events', type=int,
+                          help='Number of cores to use in the refine_events '
+                               'function. '
+                               'Default is --n-cores=1 or serial processing.',
+                          default=1)
+    optional.add_argument('--multi-proc-refine-events', type=bool,
+                          help='Controls multi processing for refine events '
+                          'even if n-cores=1',
+                          default=True)
     optional.add_argument('--n-cores-refine-binary-events', type=int,
                           help='Number of cores to use in the refine_binary_events '
                                'function. '
                                'Default is --n-cores=1 or serial processing.',
                           default=1)
     optional.add_argument('--multi-proc-refine-binary-events', type=bool,
-                          help='Controls multi processing for refine bianry events '
+                          help='Controls multi processing for refine binary events '
                           'even if n-cores=1',
                           default=True)
     optional.add_argument('--seed', type=int,
