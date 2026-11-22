@@ -24,6 +24,10 @@ from copy import deepcopy
 from scipy.spatial import cKDTree
 from scipy.signal import find_peaks
 
+# Directory of PopSyCLE (SPISEA) isochrones. Override with the POPSYCLE_ISO_DIR
+# environment variable on machines without the /g/lu mount.
+ISO_DIR = os.environ.get('POPSYCLE_ISO_DIR', '/g/lu/models/PopSyCLE_isochrones')
+
 masyr_to_degday = 1.0 * (1.0e-3 / 3600.0) * (1.0 / 365.25)
 kms_to_kpcday = 1.0 * (3.086 * 10 ** 16) ** -1 * 86400.0
 au_to_kpc = 4.848 * 10 ** -9
@@ -95,7 +99,7 @@ def srun_popsyn(srun_galaxia):
 
     synthetic.perform_pop_syn(ebf_file=ebf_file,
                               output_root=output_root,
-                              iso_dir='/g/lu/models/PopSyCLE_isochrones',
+                              iso_dir=ISO_DIR,
                               bin_edges_number=None,
                               BH_kick_speed_mean=100,
                               NS_kick_speed_mean=350,
@@ -188,7 +192,7 @@ def mrun_popsyn(mrun_galaxia):
 
     synthetic.perform_pop_syn(ebf_file=ebf_file,
                               output_root=output_root,
-                              iso_dir='/g/lu/models/PopSyCLE_isochrones',
+                              iso_dir=ISO_DIR,
                               bin_edges_number=None,
                               BH_kick_speed_mean=100,
                               NS_kick_speed_mean=350,
@@ -300,7 +304,7 @@ def mrun_big_popsyn():
 
     synthetic.perform_pop_syn(ebf_file=ebf_file,
                               output_root=output_root,
-                              iso_dir='/g/lu/models/PopSyCLE_isochrones',
+                              iso_dir=ISO_DIR,
                               bin_edges_number=None,
                               BH_kick_speed_mean=100,
                               NS_kick_speed_mean=350,
@@ -1061,7 +1065,7 @@ def stripped_perform_pop_syn_for_system_luminosity_test(mrun_galaxia):
     mp_lock = Lock()
     synthetic._mp_init_worker(mp_lock, next_id_stars_val_in, next_id_co_val_in)
 
-    cluster, _, _ = synthetic._make_cluster(iso_dir = '/g/lu/models/PopSyCLE_isochrones',
+    cluster, _, _ = synthetic._make_cluster(iso_dir = ISO_DIR,
                             log_age = np.mean([age_min, age_max]), 
                             currentClusterMass = mass_in_bin, 
                             multiplicity=multi_obj, 

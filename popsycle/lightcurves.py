@@ -375,7 +375,7 @@ def get_psbl_lightcurve_parameters(events, companions, comp_idx_L, photometric_s
     mLp = event['mass_L']  # msun (Primary lens current mass)
     mLs = companions['mass'][comp_idx_L]  # msun (Companion lens current mass)
     t0_p = event['t0']  # mjd
-    xS0 = np.array([0, 0])  # arbitrary offset (arcsec)
+    xS0_p = np.array([0, 0])  # arbitrary offset of source at t0_p (arcsec)
     beta_p = event['u0'] * event['theta_E']  # 5.0
     dL = event['rad_L'] * 10 ** 3  # Distance to lens
     dS = event['rad_S'] * 10 ** 3  # Distance to source
@@ -395,7 +395,7 @@ def get_psbl_lightcurve_parameters(events, companions, comp_idx_L, photometric_s
 
     parameter_dict = {'raL': raL, 'decL': decL,
                       'mLp': mLp, 'mLs': mLs, 't0_p': t0_p,
-                      'xS0_E': xS0[0], 'xS0_N': xS0[1], 'beta_p': beta_p,
+                      'xS0_p_E': xS0_p[0], 'xS0_p_N': xS0_p[1], 'beta_p': beta_p,
                       'muL_E': muL[0], 'muL_N': muL[1], 'muS_E': muS[0], 'muS_N': muS[1],
                       'dL': dL, 'dS': dS, 
                       #'sep': sep, 'alpha': alpha, 
@@ -501,7 +501,7 @@ def get_bspl_lightcurve_parameters(events, companions, comp_idx_S, photometric_s
                       'xS0_E': xS0[0], 'xS0_N': xS0[1],
                       'muL_E': muL[0], 'muL_N': muL[1], 'muS_E': muS[0], 'muS_N': muS[1],
                       'mag_src_pri': [mag_src_pri], 'mag_src_sec': [mag_src_sec], 'b_sff': [b_sff], 'omega_pri': omega, 'big_omega_sec': big_omega, 
-                      'i': i, 'e': e, 'log_a': log_a, 'mass_source_p': mass_source_p, 'mass_source_s': mass_source_s, 'tp': tp}
+                      'i': i, 'e': e, 'log_a': log_a, 'mSp': mass_source_p, 'mSs': mass_source_s, 'tp': tp}
 
     return parameter_dict, obj_id_L, obj_id_S, model_name
 
@@ -584,8 +584,8 @@ def get_bsbl_lightcurve_parameters(events, companions, comp_idx_L, comp_idx_S, p
     beta_p = event['u0'] * event['theta_E']  # 5.0
     dL = event['rad_L'] * 10 ** 3  # Distance to lens
     dS = event['rad_S'] * 10 ** 3  # Distance to source
-    xS0_E = 0.0  # arbitrary offset (arcsec)
-    xS0_N = 0.0  # arbitrary offset (arcsec)
+    xS0_p_E = 0.0  # arbitrary offset of primary source at t0_p (arcsec)
+    xS0_p_N = 0.0  # arbitrary offset of primary source at t0_p (arcsec)
     if '%s_%s_app_S' % (photometric_system, filter_name) in event:
         mag_src_sec = synthetic.calc_app_mag(event['rad_S'], abs_mag_sec, event['exbv_S'], f_i)
     else:
@@ -613,13 +613,13 @@ def get_bsbl_lightcurve_parameters(events, companions, comp_idx_L, comp_idx_S, p
     mass_source_s = companions['mass'][comp_idx_S]
 
     parameter_dict = {'raL': raL, 'decL': decL, 'mLp': mLp, 'mLs': mLs,
-                      't0_p': t0_p, 'xS0_E': xS0_E, 'xS0_N': xS0_N, 'beta_p': beta_p,
+                      't0_p': t0_p, 'xS0_p_E': xS0_p_E, 'xS0_p_N': xS0_p_N, 'beta_p': beta_p,
                       'muL_E': muL[0], 'muL_N': muL[1], 'muS_E': muS[0], 'muS_N': muS[1],
                       'dL': dL, 'dS': dS, 
                       'mag_src_pri': [mag_src_pri], 'mag_src_sec': [mag_src_sec], 'b_sff': [b_sff],
                      'omegaL_pri': omegaL, 'big_omegaL_sec': big_omegaL, 'iL': iL, 'eL': eL, 'tpL': tpL, 'aL': aL,
                      'omegaS_pri': omegaS, 'big_omegaS_sec': big_omegaS, 'iS': iS, 'eS': eS, 'tpS': tpS, 'aS': aS,
-                     'dmag_Lp_Ls': dmag_Lp_Ls, 'mass_source_p': mass_source_p, 'mass_source_s': mass_source_s}
+                     'dmag_Lp_Ls': dmag_Lp_Ls, 'mSp': mass_source_p, 'mSs': mass_source_s}
     
 
     return parameter_dict, obj_id_L, obj_id_S, model_name

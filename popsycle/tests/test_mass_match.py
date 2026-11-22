@@ -1,3 +1,4 @@
+import os
 import pdb
 
 import numpy as np
@@ -177,7 +178,7 @@ def test_add_multiples_match_with_kdtree():
     ####
     # Artificial cluster parameters.
     log_age = 9.0
-    iso_dir = '/g/lu/models/PopSyCLE_isochrones'
+    iso_dir = os.environ.get('POPSYCLE_ISO_DIR', '/g/lu/models/PopSyCLE_isochrones')
     cluster_mass = 50000.0
     multi_obj = multiplicity.MultiplicityResolvedDK(companion_max=True, CSF_max=2)
     feh = 0.0
@@ -250,7 +251,7 @@ def test_add_multiples_match_with_kdtree_nonneg():
     ####
     # Artificial cluster parameters.
     log_age = 9.0
-    iso_dir = '/g/lu/models/PopSyCLE_isochrones'
+    iso_dir = os.environ.get('POPSYCLE_ISO_DIR', '/g/lu/models/PopSyCLE_isochrones')
     cluster_mass = 50000.0
     multi_obj = multiplicity.MultiplicityResolvedDK(companion_max=True, CSF_max=2)
     feh = 0.0
@@ -342,7 +343,7 @@ def test_add_multiples_match_with_diff_array():
     ####
     # Artificial cluster parameters.
     log_age = 9.0
-    iso_dir = '/g/lu/models/PopSyCLE_isochrones'
+    iso_dir = os.environ.get('POPSYCLE_ISO_DIR', '/g/lu/models/PopSyCLE_isochrones')
     cluster_mass = 50000.0
     multi_obj = multiplicity.MultiplicityResolvedDK(companion_max=True, CSF_max=2)
     feh = 0.0
