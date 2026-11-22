@@ -104,7 +104,9 @@ all_filt_list = ['ubv,U', 'ubv,B', 'ubv,V', 'ubv,I', 'ubv,R',
 ##########
 multiplicity_list = {'None': None,
                      'ResolvedDK': MultiplicityResolvedDK,
-                     'ResolvedOffner2023': MultiplicityResolvedOffner2023}
+                     'ResolvedOffner2023': MultiplicityResolvedOffner2023,
+                     'MultiplicityResolvedDK': MultiplicityResolvedDK,
+                     'MultiplicityResolvedOffner2023': MultiplicityResolvedOffner2023}
 
 ###########################################################################
 ############# Population synthesis and associated functions ###############
