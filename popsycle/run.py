@@ -879,7 +879,7 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
                              hdf5_file_comp=hdf5_file_comp,
                              n_proc=n_cores_refine_events,
                              multi_proc=multi_proc_refine_events,
-                             theta_frac=theta_frac_refine_events,
+                             theta_frac=popsycle_config['theta_frac_refine_events'],
                              seed=seed, )
     if not skip_refine_binary_events:
         # refined_events_filename defaults to using multi_filt, 
