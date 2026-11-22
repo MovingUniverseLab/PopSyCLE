@@ -776,7 +776,7 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
         additional_photometric_systems = None
     
     # Return the dictionary containing PopSyCLE output filenames
-    if not run_synthpop:
+    if galactic_model_code != 'synthpop':
         filename_dict = _return_filename_dict(output_root, popsycle_config['filter_dict'], popsycle_config['red_law'], multiplicity)
     else:
         if not skip_perform_pop_syn:
@@ -820,13 +820,14 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
             proc_num = n_cores_synthpop
             seed = seed
             hdf5_file_comp = '%s_companions.h5' % name_for_output
-    
-            synthetic._check_run_synthpop(synth_config_file, name_for_output, longitude, latitude, field_shape='box', surveyArea=area, field_scale_unit='deg')
+
+            if run_synthpop:
+                synthetic._check_run_synthpop(synth_config_file, name_for_output, longitude, latitude, field_shape='box', surveyArea=area, field_scale_unit='deg')
     
             hdf5_file_comp = '%s_companions.h5' % name_for_output
 
             # Return the dictionary containing PopSyCLE output filenames
-            filename_dict = _return_filename_dict(name_for_output, popsycle_config['filter_dict'], popsycle_config['red_law'])
+            filename_dict = _return_filename_dict(name_for_output, popsycle_config['filter_dict'], '')
         
             filename_dict['hdf5_companions_filename'] = '%s_companions.h5' % name_for_output
             filename_dict['companions_filename'] = '%s_events_companions.fits' % name_for_output
@@ -1245,9 +1246,8 @@ def run(output_root='root0',
         hdf5_file_comp = None
 
     # Check pipeline stages for valid inputs
-    if run_synthpop:
-        galactic_model_code = "synthpop"
-        
+    if galactic_model_code == 'synthpop' or run_synthpop == True:
+        galactic_model_code = "synthpop'
         if not skip_perform_pop_syn:
             skip_perform_pop_syn = True
             print('Warning: perform_pop_syn cannot be used with SynthPop.')
@@ -1267,7 +1267,7 @@ def run(output_root='root0',
             synth_config_file = "synthpop/synthpop/config_files/popsycle_multiples_defaults.synthpop_conf"
 
         name_for_output = output_root
-    
+
         synthpop_dict['output_location'] = os.getcwd()
         
         longitude = field_config['longitude'],
@@ -1276,7 +1276,8 @@ def run(output_root='root0',
         proc_num = n_cores_synthpop
         seed = seed
 
-        synthetic._check_run_synthpop(synth_config_file, name_for_output, float(longitude[0]), float(latitude[0]), field_shape='box', surveyArea=float(area), field_scale_unit='deg')
+        if run_synthpop:
+            synthetic._check_run_synthpop(synth_config_file, name_for_output, float(longitude[0]), float(latitude[0]), field_shape='box', surveyArea=float(area), field_scale_unit='deg')
 
         hdf5_file_comp = '%s_companions.h5' % name_for_output
 
