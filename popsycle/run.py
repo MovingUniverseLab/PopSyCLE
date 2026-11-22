@@ -797,40 +797,40 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
         else:
             synth_config_file = "synthpop/synthpop/config_files/popsycle_multiples_defaults.synthpop_conf"
         
-            synthpop_dict['output_filename_pattern'] = "{name_for_output}_l{l_deg:.3f}_b{b_deg:.3f}"  # Force naming convention
-    
-            # Get output name
-            file_keys = {
-                "time": datetime.datetime.now().time(),
-                "date": datetime.datetime.now().date(),
-                "l_deg": longitude,
-                "b_deg": latitude,
-                "name_for_output": output_root,
-                }
-            scale_factor_ending = ""
-        
-            name_for_output = f"{synthpop_dict['output_filename_pattern'].format(**file_keys) + scale_factor_ending}"
-        
-            if 'output_location' in synthpop_dict:
-                print("Warning: path_run will be overridden by output_location")
-                path_run = synthpop_dict['output_location']
-            
-            name_for_output = f'{path_run}/{name_for_output}'
-            
-            proc_num = n_cores_synthpop
-            seed = seed
-            hdf5_file_comp = '%s_companions.h5' % name_for_output
+        synthpop_dict['output_filename_pattern'] = "{name_for_output}_l{l_deg:.3f}_b{b_deg:.3f}"  # Force naming convention
 
-            if run_synthpop:
-                synthetic._check_run_synthpop(synth_config_file, name_for_output, longitude, latitude, field_shape='box', surveyArea=area, field_scale_unit='deg')
+        # Get output name
+        file_keys = {
+            "time": datetime.datetime.now().time(),
+            "date": datetime.datetime.now().date(),
+            "l_deg": longitude,
+            "b_deg": latitude,
+            "name_for_output": output_root,
+            }
+        scale_factor_ending = ""
     
-            hdf5_file_comp = '%s_companions.h5' % name_for_output
-
-            # Return the dictionary containing PopSyCLE output filenames
-            filename_dict = _return_filename_dict(name_for_output, popsycle_config['filter_dict'], '')
+        name_for_output = f"{synthpop_dict['output_filename_pattern'].format(**file_keys) + scale_factor_ending}"
+    
+        if 'output_location' in synthpop_dict:
+            print("Warning: path_run will be overridden by output_location")
+            path_run = synthpop_dict['output_location']
         
-            filename_dict['hdf5_companions_filename'] = '%s_companions.h5' % name_for_output
-            filename_dict['companions_filename'] = '%s_events_companions.fits' % name_for_output
+        name_for_output = f'{path_run}/{name_for_output}'
+        
+        proc_num = n_cores_synthpop
+        seed = seed
+        hdf5_file_comp = '%s_companions.h5' % name_for_output
+
+        if run_synthpop:
+            synthetic._check_run_synthpop(synth_config_file, name_for_output, longitude, latitude, field_shape='box', surveyArea=area, field_scale_unit='deg')
+
+        hdf5_file_comp = '%s_companions.h5' % name_for_output
+
+        # Return the dictionary containing PopSyCLE output filenames
+        filename_dict = _return_filename_dict(name_for_output, popsycle_config['filter_dict'], '')
+    
+        filename_dict['hdf5_companions_filename'] = '%s_companions.h5' % name_for_output
+        filename_dict['companions_filename'] = '%s_events_companions.fits' % name_for_output
 
     # Check pipeline stages for valid inputs
     _check_slurm_config(slurm_config, walltime)
