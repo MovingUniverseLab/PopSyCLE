@@ -1247,7 +1247,7 @@ def run(output_root='root0',
 
     # Check pipeline stages for valid inputs
     if galactic_model_code == 'synthpop' or run_synthpop == True:
-        galactic_model_code = "synthpop'
+        galactic_model_code = "synthpop"
         if not skip_perform_pop_syn:
             skip_perform_pop_syn = True
             print('Warning: perform_pop_syn cannot be used with SynthPop.')
