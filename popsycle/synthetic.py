@@ -4956,7 +4956,7 @@ def _convert_photometric_99_to_nan(table, photometric_system='ubv'):
 
 def _check_refine_events(input_root, filter_dict, red_law, overwrite, output_file, 
                          hdf5_file_comp, legacy, seed, filter_name=None, photometric_system=None,
-                         n_proc=1, multi_proc=True):
+                         n_proc=1, multi_proc=True, theta_frac=None):
     """
     Checks that the inputs of refine_events are valid
 
@@ -5064,10 +5064,14 @@ def _check_refine_events(input_root, filter_dict, red_law, overwrite, output_fil
         raise Exception('Either filter_name or photometric_system was provided without the other. Please provide both')
             
     if not isinstance(n_proc, int):
-        raise Exception('n_proc (%s) must be an integer.' % str(seed))
+        raise Exception('n_proc (%s) must be an integer.' % str(n_proc))
     
     if not isinstance(multi_proc, bool):
         raise Exception('multi_proc (%s) must be a boolean.' % str(multi_proc))
+
+    if theta_frac is not None:
+        if not (isinstance(theta_frac, int) or isinstance(theta_frac, float)):
+            raise Exception('theta_frac (%s) must be None, int, or float.' % str(theta_frac))
 
     # Check to see that the filter dictionary, and red_law are valid
     if (filter_name is not None) and (photometric_system is not None):
@@ -5106,7 +5110,7 @@ def _check_refine_events(input_root, filter_dict, red_law, overwrite, output_fil
 
 def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_name = None, photometric_system = None,
                   overwrite=False, output_file='default', hdf5_file_comp=None, legacy = False, seed = None, 
-                  galactic_model_code = 'galaxia', n_proc=1, multi_proc=True):
+                  galactic_model_code = 'galaxia', n_proc=1, multi_proc=True, theta_frac=None):
     """
     Takes the output Astropy table from calc_events, and from that
     calculates the time of closest approach. Will also return source-lens
@@ -5174,6 +5178,9 @@ def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_n
         Default is True.
         (only relevant for companions)
 
+    theta_frac : int or float, optional
+        max allowed u0, must be lower than that used in calc_events to have an effect
+
     Returns
     -------
     <input_root>_refined_events_<photometric_system>_<filt>_<red_law>.fits : fits file
@@ -5197,7 +5204,7 @@ def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_n
     # Error handling/complaining if input types are not right.
     _check_refine_events(input_root, filter_dict, red_law, overwrite, output_file, hdf5_file_comp,
                          legacy, seed, filter_name=filter_name, photometric_system=photometric_system,
-                         n_proc=n_proc, multi_proc=multi_proc)
+                         n_proc=n_proc, multi_proc=multi_proc, theta_frac=theta_frac)
 
     if galactic_model_code == "synthpop":
         print("Warning: red_law is not used in SynthPop.")
@@ -5319,9 +5326,12 @@ def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_n
     # It trims out events that peak outside the survey range!
     N_events_original = len(event_tab)
     print('Original candidate events: ', N_events_original)
-    u0, t0 = calc_closest_approach(event_tab, obs_time)
+    u0, t0 = calc_closest_approach(event_tab, obs_time, theta_frac=theta_frac)
     N_events_survey = len(event_tab)
-    print('Candidate events in survey window: ', N_events_survey)
+    if theta_frac is not None:
+        print(f'Candidate events in survey window with theta_frac<{theta_frac}: {N_events_survey}')
+    else:
+        print(f'Candidate events in survey window: {N_events_survey}')
     event_tab['t0'] = t0  # days
     event_tab['u0'] = u0
     if len(event_tab) == 0:
@@ -5366,7 +5376,6 @@ def refine_events(input_root, red_law="Damineli16", filter_dict = None, filter_n
         with fits.open(output_file, mode='update') as hdul:
             header = hdul[0].header
             header['filters'] = filters_string
-    
     
     # If Multiples
     if hdf5_file_comp is not None:
@@ -5521,7 +5530,7 @@ def _refine_events_companion_table_loop(ii, patch_comp, event_tab_L, event_tab_S
     return companion_table
 
 
-def calc_closest_approach(event_tab, survey_duration):
+def calc_closest_approach(event_tab, survey_duration, theta_frac=None):
     """
     Calculate the point of closest approach, during a given interval.
     Return the position and time of closest approach.
@@ -5536,6 +5545,10 @@ def calc_closest_approach(event_tab, survey_duration):
 
     survey_duration : int or float
         Survey duration, in days
+
+    theta_frac : int or float, optional
+        Re-cut catalog on u0 if relevant (only matters if smaller
+        than the value used in calc_events)
 
     Returns
     -------
@@ -5566,10 +5579,10 @@ def calc_closest_approach(event_tab, survey_duration):
     # Only include events that peak in survey window,
     # since we can't easily fit parameters for events where we don’t have the peak.
     # FIXME: more efficient way to do this??
-    good = np.where((t_crit > start_time) & (t_crit < end_time))[0]
-    bad = np.where((t_crit <= start_time) | (t_crit >= end_time))[0]
+    good = (t_crit > start_time) & (t_crit < end_time)
+    #bad = np.where((t_crit <= start_time) | (t_crit >= end_time))[0]
 
-    event_tab.remove_rows(bad)
+    event_tab.remove_rows(~good)
 
     # Initialize the time of closest approach vector, minimum of survey
     # NOTE: THIS WILL OVERWRITE CURRENT VALUES
@@ -5579,6 +5592,18 @@ def calc_closest_approach(event_tab, survey_duration):
     # Assign values to closest approach values
     t0 = t_crit[good]
     u0 = calc_distance(event_tab, t0)
+
+    # We may optionally re-filter events on u0 here
+    if theta_frac is not None:
+        u0_lim = theta_frac
+        # Extend search radius for binary systems with wide separation
+        if 'sep_L' in event_tab.columns:
+            print('accounting for seps')
+            u0_lim += (event_tab['sep_L']+event_tab['sep_S'])/event_tab['theta_E']
+        good = u0<=u0_lim
+        t0 = t0[good]
+        u0 = u0[good]
+        event_tab.remove_rows(~good)
 
     return u0, t0
 

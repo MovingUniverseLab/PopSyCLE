@@ -253,6 +253,10 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
     theta_frac : float
         Another cut, in multiples of Einstein radii.
 
+    theta_frac_refine_events : float
+        Another cut, in multiples of Einstein radii. (only matters if lower than theta_frac which
+        is used in calc_events)
+
     blend_rad : float
         Stars within this distance of the lens are said to be blended.
         Units are in ARCSECONDS.
@@ -321,15 +325,26 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
         Name of the configuration file
         Default: popsycle_config.yaml
     """
+    radius_cut = kwargs.get("radius_cut", 2)
+    obs_time = kwargs.get("obs_time", 1000)
+    n_obs = kwargs.get("n_obs", 101)
+    theta_frac = kwargs.get("theta_frac", 2)
+    theta_frac_refine_events = kwargs.get("theta_frac_refine_events", None)
+    blend_rad = kwargs.get("blend_rad", 0.75)
+    bbh_frac = kwargs.get("bbh_frac", 'default')
+    binning = kwargs.get("binning", True)
+    bin_edges_number = kwargs.get("bin_edges_number", None)
+    if bin_edges_number is None:
+        bin_edges_number = 'None'
+    multiplicity = kwargs.get("multiplicity", None)
+    if multiplicity is None:
+        multiplicity = 'None'
+    if multiplicity not in multiplicity_list:
+        raise Exception('multiplicity must be None or "ResolvedDK"')
+
     if galactic_model == "synthpop":
-        radius_cut = kwargs.get("radius_cut", 2)
-        obs_time = kwargs.get("obs_time", 1000)
-        n_obs = kwargs.get("n_obs", 101)
-        theta_frac = kwargs.get("theta_frac", 2)
-        blend_rad = kwargs.get("blend_rad", 0.75)
         if "IFMR" in kwargs:
             print("Warning: IFMR will be overridden by SynthPop configuration")
-        bin_edges_number = kwargs.get("bin_edges_number", None)
         if "BH_kick_speed_mean" in kwargs:
             print("Warning: BH_kick_speed_mean will be overridden by SynthPop configuration")
         if "NS_kick_speed_mean" in kwargs:
@@ -338,10 +353,8 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
         if "red_law" in kwargs:
             print("Warning: red_law will be overridden by SynthPop configuration")
         red_law = "Damineli16"
-        if "multiplicity" in kwargs:
+        if "multiplicity" != 'None':
             print("Warning: multiplicity will be overridden by SynthPop configuration")
-        bbh_frac = kwargs.get("bbh_frac", 'default')
-        binning = kwargs.get("binning", True)
         n_proc = kwargs.get("n_proc", 1)
         config_filename = kwargs.get("config_filename", 'synthpopsycle_config.yaml')
         synthpop_dict = kwargs.get("synthpop_dict", {})
@@ -363,19 +376,12 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
         multiplicity = mod.parms.multiplicity_kwargs
         IFMR = mod.parms.ifmr_kwargs
         BH_kick_speed_mean = mod.parms.ifmr_kwargs
-        
-        if bin_edges_number is None:
-            bin_edges_number = 'None'
-            
-        if multiplicity is None or multiplicity == 'null':
-            multiplicity = 'None'
-        else:
-            multiplicity = 'ResolvedDK'
 
         config = {'radius_cut': radius_cut,
                   'obs_time': obs_time,
                   'n_obs': n_obs,
                   'theta_frac': theta_frac,
+                  'theta_frac_refine_events': theta_frac_refine_events,
                   'blend_rad': blend_rad,
                   'bin_edges_number': bin_edges_number,
                   'filter_dict': filter_dict,
@@ -383,50 +389,30 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
                   'red_law': red_law,
                   'multiplicity': multiplicity,
                   'binning' : binning,
-                 'synthpop_dict' : synthpop_dict}
-        
-        generate_config_file(config_filename, config)
-        
+                  'synthpop_dict' : synthpop_dict}
 
     if galactic_model == "galaxia":
-        radius_cut = kwargs.get("radius_cut", 2)
-        obs_time = kwargs.get("obs_time", 1000)
-        n_obs = kwargs.get("n_obs", 101)
-        theta_frac = kwargs.get("theta_frac", 2)
-        blend_rad = kwargs.get("blend_rad", 0.75)
         isochrones_dir = kwargs.get("isochrones_dir", '/Users/myself/popsycle_isochrones')
         galaxia_galaxy_model_filename = kwargs.get("galaxia_galaxy_model_filename", '/Users/myself/galaxia_galaxy_model_filename')
         IFMR = kwargs.get("IFMR", 'Raithel18')
-        bin_edges_number = kwargs.get("bin_edges_number", None)
-        bin_edges_number = kwargs.get("bin_edges_number", None)
         BH_kick_speed_mean = kwargs.get("BH_kick_speed_mean", 50)
         NS_kick_speed_mean = kwargs.get("NS_kick_speed_mean", 400)
         filter_dict = kwargs.get("filter_dict", {'ubv':['R']})
         red_law = kwargs.get("red_law", 'Damineli16')
-        multiplicity = kwargs.get("multiplicity", None)
-        bbh_frac = kwargs.get("bbh_frac", 'default')
-        binning = kwargs.get("binning", True)
         config_filename = kwargs.get("config_filename", 'popsycle_config.yaml')
 
-        if bin_edges_number is None:
-            bin_edges_number = 'None'
         if isochrones_dir == '/Users/myself/popsycle_isochrones':
             raise Exception("'isochrones_dir' must be set by the user. "
                             "The default value is only an example.")
         if galaxia_galaxy_model_filename == '/Users/myself/galaxia_galaxy_model_filename':
             raise Exception("'galaxia_galaxy_model_filename' must be set by the user. "
                             "The default value is only an example.")
-
-        if multiplicity is None:
-            multiplicity = 'None'
-    
-        if multiplicity not in multiplicity_list:
-            raise Exception('multiplicity must be None or "ResolvedDK"')
     
         config = {'radius_cut': radius_cut,
                   'obs_time': obs_time,
                   'n_obs': n_obs,
                   'theta_frac': theta_frac,
+                  'theta_frac_refine_events': theta_frac_refine_events,
                   'blend_rad': blend_rad,
                   'isochrones_dir': os.path.abspath(isochrones_dir),
                   'IFMR' : IFMR,
@@ -439,7 +425,8 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
                   'multiplicity': multiplicity,
                   'bbh_frac' : bbh_frac,
                   'binning':binning}
-        generate_config_file(config_filename, config)
+
+    generate_config_file(config_filename, config)
 
 
 def generate_config_file(config_filename, config):
@@ -892,6 +879,7 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
                              hdf5_file_comp=hdf5_file_comp,
                              n_proc=n_cores_refine_events,
                              multi_proc=multi_proc_refine_events,
+                             theta_frac=theta_frac_refine_events,
                              seed=seed, )
     if not skip_refine_binary_events:
         # refined_events_filename defaults to using multi_filt, 
@@ -1344,6 +1332,7 @@ def run(output_root='root0',
                              hdf5_file_comp=hdf5_file_comp,
                              n_proc=n_cores_refine_events,
                              multi_proc=multi_proc_refine_events,
+                             theta_frac=popsycle_config['theta_frac_refine_events'],
                              seed=seed)
     if not skip_refine_binary_events:
         # refined_events_filename defaults to using multi_filt, 
@@ -1493,7 +1482,8 @@ def run(output_root='root0',
                                 seed=seed,
                                 n_proc=n_cores_refine_events,
                                 multi_proc=multi_proc_refine_events,
-                                galactic_model_code = galactic_model_code)
+                                galactic_model_code = galactic_model_code,
+                                theta_frac=popsycle_config['theta_frac_refine_events'])
 
     if multiplicity is not None and not skip_refine_binary_events:
         if not os.path.exists(filename_dict['refined_events_filename']):
