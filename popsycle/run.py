@@ -373,7 +373,7 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
             print("Warning: SynthPop output_location will be overwritten by PopSyCLE configuration")
             synthpop_dict.pop("output_location", None)
         
-        multiplicity = mod.parms.multiplicity_kwargs
+        multiplicity = mod.parms.multiplicity_kwargs.get(spisea_multiplicity_name, 'None')
         IFMR = mod.parms.ifmr_kwargs
         BH_kick_speed_mean = mod.parms.ifmr_kwargs
 
