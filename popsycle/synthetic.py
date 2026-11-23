@@ -6434,7 +6434,6 @@ def refine_binary_events(events, companions, photometric_system, filter_name,
         event_table_df.at[obj_id_L_S, 'companion_idx_list'] = list(grouped_comps.groups[i]['companion_idx'])
         inputs[i] = [[event_table_df.loc[obj_id_L_S]], grouped_comps.groups[i].to_pandas(), obj_id_L, obj_id_S, 
                      photometric_system, filter_name, red_law, save_phot, phot_dir, overwrite] 
-        pdb.set_trace()
     
     if multi_proc:
         results = pool.starmap(one_lightcurve_analysis, inputs)
