@@ -6426,9 +6426,8 @@ def refine_binary_events(events, companions, photometric_system, filter_name,
     
     inputs = np.empty(multiples_lightcurves, dtype = object)
     
-    group_keys = list(grouped_comps.groups.keys())
     for i in range(len(grouped_comps.groups)):
-        obj_id_L, obj_id_S = group_keys[i]
+        obj_id_L, obj_id_S = grouped_comps.groups.keys[i]
         event_table_df.loc[[(obj_id_L,obj_id_S)],'companion_idx_list'] = list(grouped_comps.groups[i]['companion_idx'])
         inputs[i] = [[event_table_df.loc[obj_id_L_S]], grouped_comps.groups[i].to_pandas(), obj_id_L, obj_id_S, 
                      photometric_system, filter_name, red_law, save_phot, phot_dir, overwrite] 
