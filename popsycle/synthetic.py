@@ -750,6 +750,9 @@ def process_location_popsycle_parallel(
             Number of bins
         """
 
+        print(f"bin edges: {bin_edges_number}")
+        print(f"procs: {proc_num}")
+        
         latitude = l_deg
         longitude = b_deg
         if field_scale_unit=='sr':
@@ -928,6 +931,7 @@ def run_synthpop(output_root="default", longitude=None,
     surveyArea = area
     l_deg = longitude
     b_deg = latitude
+    bin_edges_number = kwargs.pop("bin_edges_number", None)
                      
     # Error handling/complaining if input types are not right.
     _check_run_synthpop(config_file, name_for_output, l_deg, b_deg, field_shape, surveyArea, field_scale_unit)
@@ -951,7 +955,7 @@ def run_synthpop(output_root="default", longitude=None,
             cat = mod.process_all()
         else:
             process_location_popsycle(mod, name_for_output, l_deg, b_deg, field_shape, surveyArea, field_scale_unit,
-                                                   save_data, **kwargs)
+                                                   save_data, bin_edges_number, **kwargs)
     else:  # Run with multiprocessing
         mod = synthpop.SynthPop(config_file, binning_procedure = True, *args, **kwargs)
 
@@ -965,9 +969,10 @@ def run_synthpop(output_root="default", longitude=None,
         t0 = time.time()
 
         print(" KWARGS FOR MULTIPROC", kwargs)
+        print(f" N_PROCS {proc_num}, BIN EDGES NUMBER: {bin_edges_number}")
         
         process_location_popsycle_parallel(config_file, name_for_output, l_deg, b_deg, field_shape, surveyArea, field_scale_unit,
-                                                   save_data, proc_num, bin_edges_number=9, *args, **kwargs)
+                                                   save_data, proc_num, bin_edges_number, *args, **kwargs)
 
     if 'output_location' in kwargs:
         output_location = kwargs['output_location']
