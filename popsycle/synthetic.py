@@ -6422,7 +6422,8 @@ def refine_binary_events(events, companions, photometric_system, filter_name,
     
     event_table_df = event_table.to_pandas().set_index(['obj_id_L', 'obj_id_S'])
     empty_lists = [ [] for _ in range(len(event_table_df)) ]
-    event_table_df['companion_idx_list'] = empty_lists
+    event_table_df.loc['companion_idx_list'] = empty_lists
+    event_table_df.loc['companion_idx_list'] = event_table_df['companion_idx_list'].astype("object")
     
     inputs = np.empty(multiples_lightcurves, dtype = object)
     
@@ -6430,7 +6431,6 @@ def refine_binary_events(events, companions, photometric_system, filter_name,
         obj_id_L = grouped_comps.groups.keys[i][0]
         obj_id_S = grouped_comps.groups.keys[i][1]
         obj_id_L_S = (obj_id_L, obj_id_S)
-        pdb.set_trace()
         event_table_df['companion_idx_list'].loc[obj_id_L_S] = list(grouped_comps.groups[i]['companion_idx'])
         inputs[i] = [[event_table_df.loc[obj_id_L_S]], grouped_comps.groups[i].to_pandas(), obj_id_L, obj_id_S, 
                      photometric_system, filter_name, red_law, save_phot, phot_dir, overwrite] 
