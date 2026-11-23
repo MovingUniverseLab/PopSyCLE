@@ -6422,7 +6422,7 @@ def refine_binary_events(events, companions, photometric_system, filter_name,
     
     event_table_df = event_table.to_pandas().set_index(['obj_id_L', 'obj_id_S'])
     empty_lists = [ [] for _ in range(len(event_table_df)) ]
-    event_table_df.loc['companion_idx_list'] = empty_lists
+    event_table_df['companion_idx_list'] = empty_lists
     event_table_df.loc['companion_idx_list'] = event_table_df['companion_idx_list'].astype("object")
     
     inputs = np.empty(multiples_lightcurves, dtype = object)
