@@ -231,8 +231,23 @@ def generate_slurm_config_file(path_python='python', account='ulens',
                          'walltime_max': walltime_max}}
     generate_config_file(config_filename, config)
 
-
-def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
+def generate_popsycle_config_file(radius_cut=2, obs_time=1000,
+                                  n_obs=101, theta_frac=2,
+                                  theta_frac_refine_events=None, blend_rad=0.75,
+                                  isochrones_dir='/Users/myself/popsycle_isochrones',
+                                  IFMR='Raithel18',
+                                  galaxia_galaxy_model_filename='/Users/myself/galaxia_galaxy_model_filename',
+                                  bin_edges_number=None,
+                                  BH_kick_speed_mean=50,
+                                  NS_kick_speed_prms={'shape':'lognormal','mean':5.6,'std':0.68},
+                                  filter_dict={'ubv':['R']},
+                                  red_law='Damineli16',
+                                  multiplicity=None,
+                                  bbh_frac = 'default',
+                                  binning = True,
+                                  config_filename='popsycle_config.yaml',
+                                  galactic_model="galaxia",
+                                  **kwargs):
     """
     Save popsycle configuration parameters from a dictionary into a yaml file
 
@@ -286,11 +301,17 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
         Mean of the birth kick speed of BH (in km/s) maxwellian distrubution.
         Defaults to 50 km/s.
 
-    NS_kick_speed_mean : float
-        Mean of the birth kick speed of NS (in km/s) maxwellian distrubution.
-        Defaults to 400 km/s based on distributions found by
-        Hobbs et al 2005 'A statistical study of 233 pulsar proper motions'.
-        https://ui.adsabs.harvard.edu/abs/2005MNRAS.360..974H/abstract
+    NS_kick_speed_prms : dict, optional
+        Dictionary containing Shape, Mean, and Std (if applicable) of the
+        birth kick speed of NS in either a log normal distribution or maxwellian distribution.
+        Keys must include 'shape' and 'mean'.
+        If using a log normal, the 'std' key must also be included.
+        Allowed 'shape' values: 'lognorm', 'maxwell'
+        Example::
+            NS_kick_speed_prms = {'shape': 'lognorm', 'mean': 5.6, 'std': 0.68}
+        Defaults to log normal with mean of 5.6 and std of 0.68 based on distributions found by
+        Disberg et al 2025 'The Kick Velocity Distribution of Isolated Neutron Stars'.
+        https://iopscience.iop.org/article/10.3847/2041-8213/adf286
 
     filter_dict : dict
         Dictionary with desired photometric systems and filters to calculate microlensing events for.
@@ -325,38 +346,26 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
         Name of the configuration file
         Default: popsycle_config.yaml
     """
-    radius_cut = kwargs.get("radius_cut", 2)
-    obs_time = kwargs.get("obs_time", 1000)
-    n_obs = kwargs.get("n_obs", 101)
-    theta_frac = kwargs.get("theta_frac", 2)
-    theta_frac_refine_events = kwargs.get("theta_frac_refine_events", None)
-    blend_rad = kwargs.get("blend_rad", 0.75)
-    bbh_frac = kwargs.get("bbh_frac", 'default')
-    binning = kwargs.get("binning", True)
-    bin_edges_number = kwargs.get("bin_edges_number", None)
     if bin_edges_number is None:
         bin_edges_number = 'None'
-    multiplicity = kwargs.get("multiplicity", None)
     if multiplicity is None:
         multiplicity = 'None'
     if multiplicity not in multiplicity_list:
-        raise Exception('multiplicity must be None or "ResolvedDK"')
+        raise Exception(f'multiplicity must be in {multiplicity_list.keys()}')
 
     if galactic_model == "synthpop":
-        if "IFMR" in kwargs:
+        if "IFMR" is not None:
             print("Warning: IFMR will be overridden by SynthPop configuration")
-        if "BH_kick_speed_mean" in kwargs:
+        if "BH_kick_speed_mean" is not None:
             print("Warning: BH_kick_speed_mean will be overridden by SynthPop configuration")
-        if "NS_kick_speed_mean" in kwargs:
+        if "NS_kick_speed_mean" is not None:
             print("Warning: NS_kick_speed_mean will be overridden by SynthPop configuration")
-        filter_dict = kwargs.get("filter_dict", {'ubv':['R']})
-        if "red_law" in kwargs:
+        if "red_law" in not None:
             print("Warning: red_law will be overridden by SynthPop configuration")
         red_law = "Damineli16"
         if "multiplicity" != 'None':
             print("Warning: multiplicity will be overridden by SynthPop configuration")
         n_proc = kwargs.get("n_proc", 1)
-        config_filename = kwargs.get("config_filename", 'synthpopsycle_config.yaml')
         synthpop_dict = kwargs.get("synthpop_dict", {})
 
         # Initiate SynthPop model to obtain SynthPop parameters
@@ -392,15 +401,6 @@ def generate_popsycle_config_file(galactic_model="galaxia", **kwargs):
                   'synthpop_dict' : synthpop_dict}
 
     if galactic_model == "galaxia":
-        isochrones_dir = kwargs.get("isochrones_dir", '/Users/myself/popsycle_isochrones')
-        galaxia_galaxy_model_filename = kwargs.get("galaxia_galaxy_model_filename", '/Users/myself/galaxia_galaxy_model_filename')
-        IFMR = kwargs.get("IFMR", 'Raithel18')
-        BH_kick_speed_mean = kwargs.get("BH_kick_speed_mean", 50)
-        NS_kick_speed_mean = kwargs.get("NS_kick_speed_mean", 400)
-        filter_dict = kwargs.get("filter_dict", {'ubv':['R']})
-        red_law = kwargs.get("red_law", 'Damineli16')
-        config_filename = kwargs.get("config_filename", 'popsycle_config.yaml')
-
         if isochrones_dir == '/Users/myself/popsycle_isochrones':
             raise Exception("'isochrones_dir' must be set by the user. "
                             "The default value is only an example.")
@@ -851,7 +851,7 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
                                IFMR=popsycle_config['IFMR'],
                                bin_edges_number=popsycle_config['bin_edges_number'],
                                BH_kick_speed_mean=popsycle_config['BH_kick_speed_mean'],
-                               NS_kick_speed_mean=popsycle_config['NS_kick_speed_mean'],
+                               NS_kick_speed_prms=popsycle_config['NS_kick_speed_prms'],
                                additional_photometric_systems=additional_photometric_systems,
                                n_proc=n_cores_perform_pop_syn,
                                binning = popsycle_config['binning'],
@@ -891,8 +891,7 @@ def generate_slurm_script(slurm_config_filename, popsycle_config_filename,
         filter_name = popsycle_config['filter_dict'][photometric_system][0]
         _check_refine_binary_events(events=filename_dict['refined_events_filename'],
                                     companions=refined_events_comp_filename,
-                                    filter_name=filter_name,
-                                    photometric_system=photometric_system,
+                                    filter_dict=popsycle_config['filter_dict'],
                                     n_proc=n_cores_refine_binary_events,
                                     overwrite=overwrite,
                                     output_file='default', save_phot=True,
@@ -1304,7 +1303,7 @@ def run(output_root='root0',
                                IFMR=popsycle_config['IFMR'],
                                bin_edges_number=popsycle_config['bin_edges_number'],
                                BH_kick_speed_mean=popsycle_config['BH_kick_speed_mean'],
-                               NS_kick_speed_mean=popsycle_config['NS_kick_speed_mean'],
+                               NS_kick_speed_prms=popsycle_config['NS_kick_speed_prms'],
                                additional_photometric_systems=additional_photometric_systems,
                                verbose=verbose,
                                n_proc=n_cores_perform_pop_syn,
@@ -1344,8 +1343,7 @@ def run(output_root='root0',
         filter_name = popsycle_config['filter_dict'][photometric_system][0]
         _check_refine_binary_events(events=filename_dict['refined_events_filename'],
                                     companions=refined_events_comp_filename,
-                                    filter_name=filter_name,
-                                    photometric_system=photometric_system,
+                                    filter_dict=popsycle_config['filter_dict'],
                                     n_proc=n_cores_refine_binary_events,
                                     overwrite=overwrite,
                                     output_file='default', save_phot=True,
@@ -1399,7 +1397,7 @@ def run(output_root='root0',
             IFMR=popsycle_config['IFMR'],
             bin_edges_number=popsycle_config['bin_edges_number'],
             BH_kick_speed_mean=popsycle_config['BH_kick_speed_mean'],
-            NS_kick_speed_mean=popsycle_config['NS_kick_speed_mean'],
+            NS_kick_speed_prms=popsycle_config['NS_kick_speed_prms'],
             additional_photometric_systems=additional_photometric_systems,
             n_proc=n_cores_perform_pop_syn,
             overwrite=overwrite,
@@ -1499,8 +1497,7 @@ def run(output_root='root0',
         phot_dir = '%s_bin_phot' % output_root
         synthetic.refine_binary_events(events=filename_dict['refined_events_filename'],
                                        companions=refined_events_comp_filename,
-                                       filter_name=filter_name,
-                                       photometric_system=photometric_system,
+                                       filter_dict=popsycle_config['filter_dict'],
                                        n_proc=n_cores_refine_binary_events,
                                        overwrite=overwrite,
                                        output_file='default', save_phot=True,

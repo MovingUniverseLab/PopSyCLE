@@ -14,7 +14,7 @@ import h5py
 import math
 import pickle
 from astropy import units
-from scipy.stats import maxwell
+from scipy.stats import maxwell, lognorm
 import astropy.coordinates as coord
 from astropy.coordinates.representation import UnitSphericalRepresentation
 from astropy.coordinates import SkyCoord  # High-level coordinates
@@ -1011,7 +1011,7 @@ def run_synthpop(output_root="default", longitude=None,
 def _check_perform_pop_syn(ebf_file, output_root, iso_dir,
                            IFMR,
                            bin_edges_number,
-                           BH_kick_speed_mean, NS_kick_speed_mean,
+                           BH_kick_speed_mean, NS_kick_speed_prms,
                            additional_photometric_systems,
                            multiplicity, binning,
                            overwrite, seed,
@@ -1053,11 +1053,17 @@ def _check_perform_pop_syn(ebf_file, output_root, iso_dir,
         Mean of the birth kick speed of BH (in km/s) maxwellian distrubution.
         Defaults to 50 km/s.
 
-    NS_kick_speed_mean : float
-        Mean of the birth kick speed of NS (in km/s) maxwellian distrubution.
-        Defaults to 400 km/s based on distributions found by
-        Hobbs et al 2005 'A statistical study of 233 pulsar proper motions'.
-        https://ui.adsabs.harvard.edu/abs/2005MNRAS.360..974H/abstract
+    NS_kick_speed_prms : dict, optional
+        Dictionary containing Shape, Mean, and Std (if applicable) of the
+        birth kick speed of NS in either a log normal distribution or maxwellian distribution.
+        Keys must include 'shape' and 'mean'.
+        If using a log normal, the 'std' key must also be included.
+        Allowed 'shape' values: 'lognorm', 'maxwell'
+        Example::
+            NS_kick_speed_prms = {'shape': 'lognorm', 'mean': 5.6, 'std': 0.68}
+        Defaults to log normal with mean of 5.6 and std of 0.68 based on distributions found by
+        Disberg et al 2025 'The Kick Velocity Distribution of Isolated Neutron Stars'.
+        https://iopscience.iop.org/article/10.3847/2041-8213/adf286
 
     additional_photometric_systems : list of strs
         The name of the photometric systems which should be calculated from
@@ -1125,10 +1131,29 @@ def _check_perform_pop_syn(ebf_file, output_root, iso_dir,
         if not isinstance(BH_kick_speed_mean, float):
             raise Exception('BH_kick_speed_mean (%s) must be an integer or a float.' % str(BH_kick_speed_mean))
 
-    if not isinstance(NS_kick_speed_mean, int):
-        if not isinstance(NS_kick_speed_mean, float):
-            raise Exception('NS_kick_speed_mean (%s) must be an integer or a float.' % str(NS_kick_speed_mean))
+    if not isinstance(NS_kick_speed_prms, dict):
+        raise Exception('NS_kick_speed_prms (%s) must be an dictionary.' % str(NS_kick_speed_prms))
+        
+    if 'shape' not in NS_kick_speed_prms:
+        raise Exception("NS_kick_speed_prms (%s) must include 'shape' as a key." % str(NS_kick_speed_prms))
 
+    if 'mean' not in NS_kick_speed_prms:
+        raise Exception("NS_kick_speed_prms (%s) must include 'mean' as a key." % str(NS_kick_speed_prms))
+
+    if NS_kick_speed_prms['shape'] not in ['lognorm','maxwell']:
+        raise Exception("NS_kick_speed_prms['shape'] (%s) must be one of the following: 'lognorm', 'maxwell'." % str(NS_kick_speed_prms['shape']))
+
+    if not isinstance(NS_kick_speed_prms['mean'],int):
+        if not isinstance(NS_kick_speed_prms['mean'],float):
+            raise Exception("NS_kick_speed_prms['mean'] (%s) must be integer or a float." % str(NS_kick_speed_prms['mean']))
+
+    if NS_kick_speed_prms['shape'] == 'lognorm':
+        if 'std' not in NS_kick_speed_prms:
+            raise Exception("NS_kick_speed_prms (%s) must include 'mean' as a key." % str(NS_kick_speed_prms))
+        if not isinstance(NS_kick_speed_prms['std'],int):
+            if not isinstance(NS_kick_speed_prms['std'],float):
+                raise Exception("NS_kick_speed_prms['std'] (%s) must be integer or a float." % str(NS_kick_speed_prms['std']))
+            
     if multiplicity is not None:
         if not isinstance(multiplicity, MultiplicityResolvedDK):
             raise Exception('multiplicity must be None or a subclass of MultiplicityResolvedDK.')
@@ -1169,7 +1194,8 @@ def _check_perform_pop_syn(ebf_file, output_root, iso_dir,
 def perform_pop_syn(ebf_file, output_root, iso_dir,
                     IFMR,
                     bin_edges_number=None,
-                    BH_kick_speed_mean=50, NS_kick_speed_mean=400,
+                    BH_kick_speed_mean=50, 
+                    NS_kick_speed_prms={'shape':'lognormal','mean':5.6,'std':0.68},
                     additional_photometric_systems=None,
                     multiplicity=None, binning = True,
                     overwrite=False, seed=None,
@@ -1213,11 +1239,17 @@ def perform_pop_syn(ebf_file, output_root, iso_dir,
         Mean of the birth kick speed of BH (in km/s) maxwellian distrubution.
         Defaults to 50 km/s.
 
-    NS_kick_speed_mean : float, optional
-        Mean of the birth kick speed of NS (in km/s) maxwellian distrubution.
-        Defaults to 400 km/s based on distributions found by
-        Hobbs et al 2005 'A statistical study of 233 pulsar proper motions'.
-        https://ui.adsabs.harvard.edu/abs/2005MNRAS.360..974H/abstract
+    NS_kick_speed_prms : dict, optional
+        Dictionary containing Shape, Mean, and Std (if applicable) of the
+        birth kick speed of NS in either a log normal distribution or maxwellian distribution.
+        Keys must include 'shape' and 'mean'.
+        If using a log normal, the 'std' key must also be included.
+        Allowed 'shape' values: 'lognorm', 'maxwell'
+        Example::
+            NS_kick_speed_prms = {'shape': 'lognorm', 'mean': 5.6, 'std': 0.68}
+        Defaults to log normal with mean of 5.6 and std of 0.68 based on distributions found by
+        Disberg et al 2025 'The Kick Velocity Distribution of Isolated Neutron Stars'.
+        https://iopscience.iop.org/article/10.3847/2041-8213/adf286
 
     additional_photometric_systems : list of strs, optional
         The name of the photometric systems which should be calculated from
@@ -1286,7 +1318,7 @@ def perform_pop_syn(ebf_file, output_root, iso_dir,
     _check_perform_pop_syn(ebf_file, output_root, iso_dir,
                            IFMR,
                            bin_edges_number,
-                           BH_kick_speed_mean, NS_kick_speed_mean,
+                           BH_kick_speed_mean, NS_kick_speed_prms,
                            additional_photometric_systems,
                            multiplicity, binning,
                            overwrite, seed,
@@ -1490,7 +1522,7 @@ def perform_pop_syn(ebf_file, output_root, iso_dir,
                     #                                          popid_array, age_array, lat_bin_edges, long_bin_edges,
                     #                                          ebf_file,
                     #                                          kdt_star_p, exbv_arr4kdt,
-                    #                                          iso_dir, IFMR, NS_kick_speed_mean, BH_kick_speed_mean,
+                    #                                          iso_dir, IFMR, NS_kick_speed_prms, BH_kick_speed_mean,
                     #                                          multiplicity,
                     #                                          additional_photometric_systems,
                     #                                          t0, binning, seed, output_root, verbose=verbose)
@@ -1508,7 +1540,7 @@ def perform_pop_syn(ebf_file, output_root, iso_dir,
                             popid_array, age_array, lat_bin_edges, long_bin_edges,
                             ebf_file,
                             kdt_star_p, exbv_arr4kdt,
-                            iso_dir, IFMR, NS_kick_speed_mean, BH_kick_speed_mean,
+                            iso_dir, IFMR, NS_kick_speed_prms, BH_kick_speed_mean,
                             multiplicity,
                             additional_photometric_systems,
                             t0, binning, seed, output_root, verbose)
@@ -1577,7 +1609,7 @@ def perform_pop_syn(ebf_file, output_root, iso_dir,
     line2 = 'output_root , ' + output_root + '\n'
     line3 = 'bin_edges_number , ' + str(bin_edges_number) + '\n'
     line4 = 'BH_kick_speed_mean , ' + str(BH_kick_speed_mean) + ' , (km/s)' + '\n'
-    line5 = 'NS_kick_speed_mean , ' + str(NS_kick_speed_mean) + ' , (km/s)' + '\n'
+    line5 = 'NS_kick_speed_prms , ' + str(NS_kick_speed_prms) + '\n'
     line6 = 'iso_dir , ' + iso_dir + '\n'
     line7 = 'IFMR , ' + str(IFMR) + '\n'
     line8 = 'seed , ' + str(seed) + '\n'
@@ -1649,7 +1681,7 @@ def _mp_init_worker(lock_in, next_id_stars_val_in, next_id_co_val_in):
 def _process_popsyn_stars_in_bin(bin_idx, age_of_bin, metallicity_of_bin,
                                  popid_array, age_array, lat_bin_edges, long_bin_edges,
                                  ebf_file, kdt_star_p, exbv_arr4kdt,
-                                 iso_dir, IFMR, NS_kick_speed_mean, BH_kick_speed_mean,
+                                 iso_dir, IFMR, NS_kick_speed_prms, BH_kick_speed_mean,
                                  multiplicity, additional_photometric_systems, t0,
                                  binning, seed,
                                  output_root, verbose=0):
@@ -1702,11 +1734,17 @@ def _process_popsyn_stars_in_bin(bin_idx, age_of_bin, metallicity_of_bin,
         'Spera15' = IFMR_Spera15
         'SukhboldN20' = IFMR_N20_Sukhbold
         
-    NS_kick_speed_mean : float
-        Mean of the birth kick speed of NS (in km/s) maxwellian distrubution.
-        Defaults to 400 km/s based on distributions found by
-        Hobbs et al 2005 'A statistical study of 233 pulsar proper motions'.
-        https://ui.adsabs.harvard.edu/abs/2005MNRAS.360..974H/abstract
+    NS_kick_speed_prms : dict, optional
+        Dictionary containing Shape, Mean, and Std (if applicable) of the
+        birth kick speed of NS in either a log normal distribution or maxwellian distribution.
+        Keys must include 'shape' and 'mean'.
+        If using a log normal, the 'std' key must also be included.
+        Allowed 'shape' values: 'lognorm', 'maxwell'
+        Example::
+            NS_kick_speed_prms = {'shape': 'lognorm', 'mean': 5.6, 'std': 0.68}
+        Defaults to log normal with mean of 5.6 and std of 0.68 based on distributions found by
+        Disberg et al 2025 'The Kick Velocity Distribution of Isolated Neutron Stars'.
+        https://iopscience.iop.org/article/10.3847/2041-8213/adf286
         
     BH_kick_speed_mean : float
         Mean of the birth kick speed of BH (in km/s) maxwellian distrubution.
@@ -1818,7 +1856,7 @@ def _process_popsyn_stars_in_bin(bin_idx, age_of_bin, metallicity_of_bin,
                                         stars_in_bin,
                                         kdt_star_p, exbv_arr4kdt,
                                         BH_kick_speed_mean=BH_kick_speed_mean,
-                                        NS_kick_speed_mean=NS_kick_speed_mean,
+                                        NS_kick_speed_prms=NS_kick_speed_prms,
                                         additional_photometric_systems=additional_photometric_systems,
                                         multiplicity=multiplicity,
                                         seed=seed)
@@ -2204,7 +2242,8 @@ def _make_co_dict(log_age,
                   cluster,
                   star_dict,
                   kdt_star_p, exbv_arr4kdt,
-                  BH_kick_speed_mean=50, NS_kick_speed_mean=400,
+                  BH_kick_speed_mean=50, 
+                  NS_kick_speed_prms={'shape':'lognorm','mean':5.6,'std':0.68},
                   additional_photometric_systems=None,
                   multiplicity=None,
                   seed=None):
@@ -2234,11 +2273,17 @@ def _make_co_dict(log_age,
         Mean of the birth kick speed of BH (in km/s) maxwellian distrubution.
         Defaults to 50 km/s.
 
-    NS_kick_speed_mean : float, optional
-        Mean of the birth kick speed of NS (in km/s) maxwellian distrubution.
-        Defaults to 400 km/s based on distributions found by
-        Hobbs et al 2005 'A statistical study of 233 pulsar proper motions'.
-        https://ui.adsabs.harvard.edu/abs/2005MNRAS.360..974H/abstract
+    NS_kick_speed_prms : dict, optional
+        Dictionary containing Shape, Mean, and Std (if applicable) of the 
+        birth kick speed of NS in either a log normal distribution or maxwellian distribution.
+        Keys must include 'shape' and 'mean'. 
+        If using a log normal, the 'std' key must also be included.
+        Allowed 'shape' values: 'lognorm', 'maxwell'
+        Example::
+            NS_kick_speed_prms = {'shape': 'lognorm', 'mean': 5.6, 'std': 0.68}
+        Defaults to log normal with mean of 5.6 and std of 0.68 based on distributions found by
+        Disberg et al 2025 'The Kick Velocity Distribution of Isolated Neutron Stars'.
+        https://iopscience.iop.org/article/10.3847/2041-8213/adf286
 
     additional_photometric_systems : list of strs or None, optional
         The name of the photometric systems which should be calculated from
@@ -2357,9 +2402,15 @@ def _make_co_dict(log_age,
             # user defined mean by the Maxwellian mean.
 
             NS_idx = np.where(co_dict['rem_id'] == 102)[0]
-            NS_kick_speed_scale = NS_kick_speed_mean / (2*np.sqrt(2/np.pi))
             if len(NS_idx) > 0:
-                NS_kick_speed = maxwell.rvs(loc=0, scale=NS_kick_speed_scale, size=len(NS_idx))
+                if NS_kick_speed_prms['shape'] == 'maxwell':
+                    NS_kick_speed_mean = NS_kick_speed_prms['mean']
+                    NS_kick_speed_scale = NS_kick_speed_mean / (2*np.sqrt(2/np.pi))
+                    NS_kick_speed = maxwell.rvs(loc=0, scale=NS_kick_speed_scale, size=len(NS_idx))
+                if NS_kick_speed_prms['shape'] == 'lognorm':
+                    NS_kick_speed_scale = np.exp(NS_kick_speed_prms['mean'])
+                    NS_kick_speed_std = NS_kick_speed_prms['std']
+                    NS_kick_speed = lognorm.rvs(loc=0, scale=NS_kick_speed_scale, s=NS_kick_speed_std, size=len(NS_idx))
                 NS_kick = utils.sample_spherical(len(NS_idx), NS_kick_speed)
                 co_dict['vx'][NS_idx] += NS_kick[0]
                 co_dict['vy'][NS_idx] += NS_kick[1]
@@ -6180,7 +6231,7 @@ def _add_multiples_parameters(companion_table, event_table):
 
 
 def _check_refine_binary_events(events, companions,
-                                photometric_system, filter_name,
+                                filter_dict,
                                 overwrite, output_file,
                                 save_phot, phot_dir, n_proc, multi_proc):
     """
@@ -6234,11 +6285,13 @@ def _check_refine_binary_events(events, companions,
     if not isinstance(companions, str):
         raise Exception('companions (%s) must be a string.' % str(companions))
     
-    if not isinstance(filter_name, str):
-        raise Exception('filter_name (%s) must be a string.' % str(filter_name))        
-
-    if not isinstance(photometric_system, str):
-        raise Exception('photometric_system (%s) must be a string.' % str(photometric_system))  
+    if filter_dict is not None:
+        if not isinstance(filter_dict, dict):
+            raise Exception('filter_dict (%s) must be a dictionary.' % str(filter_dict))
+        if not all(isinstance(key,str) for key in filter_dict):
+            raise Exception('All filter_dict keys must be strings.')
+        if not all(isinstance(filt,str) for key,val in filter_dict.items() for filt in val):
+            raise Exception('All filter_dict vaues must be lists of strings.')      
 
     if not isinstance(output_file, str):
         raise Exception('output_file (%s) must be a string.' % str(output_file))
@@ -6262,26 +6315,30 @@ def _check_refine_binary_events(events, companions,
     if n_proc > 1 and multi_proc == False:
         raise Exception('if multi_proc is False, n_proc must = 1')
 
-    # Check to see that the filter name, photometric system, red_law are valid
-    if photometric_system not in photometric_system_dict:
-        exception_str = 'photometric_system must be a key in ' \
-                        'photometric_system_dict. \n' \
-                        'Acceptable values are : '
-        for photometric_system in photometric_system_dict:
-            exception_str += '%s, ' % photometric_system
-        exception_str = exception_str[:-2]
-        raise Exception(exception_str)
+    # Check to see that the filter name and photometric system in filter_dict and red_law are valid
+    for system in filter_dict:
+        if system not in photometric_system_dict:
+            exception_str = 'photometric_system must be a key in ' \
+                            'photometric_system_dict. \n' \
+                            'Acceptable values are : '
+            for photometric_system in photometric_system_dict:
+                exception_str += '%s, ' % photometric_system
+            exception_str = exception_str[:-2]
+            raise Exception(exception_str)
 
-    if filter_name not in photometric_system_dict[photometric_system]:
-        exception_str = 'filter_name must be a value in ' \
-                        'photometric_system_dict[%s]. \n' \
-                        'Acceptable values are : ' % photometric_system
-        for filter_name in photometric_system_dict[photometric_system]:
-            exception_str += '%s, ' % filter_name
-        exception_str = exception_str[:-2]
-        raise Exception(exception_str)
+        for filt in filter_dict[system]:
+            if filt not in photometric_system_dict[system]:
+                exception_str = 'filter_name must be a value in ' \
+                                'photometric_system_dict[%s]. \n' \
+                                'Acceptable values are : ' % system
+                for filter_name in photometric_system_dict[system]:
+                    exception_str += '%s, ' % filter_name
+                exception_str = exception_str[:-2]
+                raise Exception(exception_str)
+            
+            key = system + '_' + filt
 
-def refine_binary_events(events, companions, photometric_system, filter_name,
+def refine_binary_events(events, companions, filter_dict,
                          red_law = 'Damineli16',
                          overwrite = False, output_file = 'default',
                          save_phot = False, phot_dir = None,
@@ -6353,6 +6410,9 @@ def refine_binary_events(events, companions, photometric_system, filter_name,
     """
     start_time = time.time()
     
+    photometric_system = list(filter_dict.keys())[0]
+    filter_name = filter_dict[photometric_system][0]
+    
     if not overwrite and os.path.isfile(output_file):
         raise Exception('That refined_events.fits file name is taken! '
                         'Either delete the .fits file, or pick a new name.')
@@ -6362,7 +6422,7 @@ def refine_binary_events(events, companions, photometric_system, filter_name,
         
     # Error handling/complaining if input types are not right.
     _check_refine_binary_events(events, companions, 
-                         photometric_system, filter_name,
+                         filter_dict,
                          overwrite, output_file,
                          save_phot, phot_dir, n_proc, multi_proc)
         
@@ -6432,7 +6492,7 @@ def refine_binary_events(events, companions, photometric_system, filter_name,
         obj_id_L_S = (obj_id_L, obj_id_S)
         event_table_df['companion_idx_list'].loc[obj_id_L_S] = list(grouped_comps.groups[i]['companion_idx'])
         inputs[i] = [[event_table_df.loc[obj_id_L_S]], grouped_comps.groups[i].to_pandas(), obj_id_L, obj_id_S, 
-                     photometric_system, filter_name, red_law, save_phot, phot_dir, overwrite] 
+                     filter_dict, red_law, save_phot, phot_dir, overwrite] 
     
     if multi_proc:
         results = pool.starmap(one_lightcurve_analysis, inputs)
@@ -6551,7 +6611,7 @@ def refine_binary_events(events, companions, photometric_system, filter_name,
     return
 
 def one_lightcurve_analysis(event_table_row, comp_table_rows, obj_id_L, obj_id_S,
-                            photometric_system, filter_name, red_law,
+                            filter_dict, red_law,
                             save_phot = False, phot_dir = None, overwrite = False):
     """
     Generate BAGLE model, photometry, and generate binary lightcurve parameters.
@@ -6638,8 +6698,7 @@ def one_lightcurve_analysis(event_table_row, comp_table_rows, obj_id_L, obj_id_S
             for comp_idx_L in comp_idxs_L:
                 global_comp_idx_L = comp_table_rows['companion_idx'][comp_idx_L]
                 name = "L_{}_S_{}".format(obj_id_L, obj_id_S) + "compL_{}_compS_{}".format(global_comp_idx_L, global_comp_idx_S)
-                model_parameter_dict, _, _, model_name = lightcurves.get_bsbl_lightcurve_parameters(event_table_row, comp_table_rows, int(comp_idx_L), int(comp_idx_S), 
-                                                                      photometric_system, filter_name, red_law, event_id = 0)
+                model_parameter_dict, _, _, model_name = lightcurves.get_bsbl_lightcurve_parameters(event_table_row, comp_table_rows, int(comp_idx_L), int(comp_idx_S), filter_dict, red_law, event_id = 0)
                 mod_class = getattr(model, model_name)
                 try:
                     mod = mod_class(**model_parameter_dict)
@@ -6663,7 +6722,7 @@ def one_lightcurve_analysis(event_table_row, comp_table_rows, obj_id_L, obj_id_S
             global_comp_idx = comp_table_rows['companion_idx'][comp_idx]
             name = "L_{}_S_{}".format(obj_id_L, obj_id_S) + "compL_{}".format(global_comp_idx)
             model_parameter_dict, _, _, model_name = lightcurves.get_psbl_lightcurve_parameters(event_table_row, comp_table_rows, comp_idx,
-                                                                                                photometric_system, filter_name, event_id = 0)
+                                                                                                filter_dict, event_id = 0)
             mod_class = getattr(model, model_name)
             try:
                 mod = mod_class(**model_parameter_dict)
@@ -6685,7 +6744,7 @@ def one_lightcurve_analysis(event_table_row, comp_table_rows, obj_id_L, obj_id_S
             global_comp_idx = comp_table_rows['companion_idx'][comp_idx]
             name = "L_{}_S_{}".format(obj_id_L, obj_id_S) + "compS_{}".format(global_comp_idx)
             model_parameter_dict, _, _, model_name = lightcurves.get_bspl_lightcurve_parameters(event_table_row, comp_table_rows, comp_idx, 
-                                                                                                photometric_system, filter_name, red_law, event_id = 0)
+                                                                                                filter_dict, red_law, event_id = 0)
             mod_class = getattr(model, model_name)
             try:
                 mod = mod_class(**model_parameter_dict)
@@ -6744,13 +6803,13 @@ def model_param_dict2fits_header(model_parameter_dict, phot_dir, name):
     """
     
     fits_file = phot_dir + '/' + name + '_phot.fits'
+    
+    param_table = Table([model_parameter_dict])
+    param_table_hdu = fits.table_to_hdu(param_table)
+    
     with fits.open(fits_file, 'update', memmap=False) as f:
-        hdr = f[0].header
-        for key in list(model_parameter_dict.keys()):
-            try:
-                hdr[key] = model_parameter_dict[key]
-            except ValueError:
-                hdr[key] = str(model_parameter_dict[key])
+        f.append(param_table_hdu)
+        f.writeto(fits_file, overwrite=True)
 
     return
 
@@ -6819,7 +6878,7 @@ def lightcurve_parameter_gen(model, model_parameter_dict, comp_idxs, obj_id_L, o
     # Handles the case of modeling a triple source as a binary source,
     # But it's CO + CO + star and you're modeling the CO + CO pair (so no flux)
     if 'mag_src_sec' in list(model_parameter_dict.keys()):
-        if np.isnan(model_parameter_dict['mag_src_sec']) and np.isnan(model_parameter_dict['mag_src_pri']):
+        if np.isnan(model_parameter_dict['mag_src_sec'][0]) and np.isnan(model_parameter_dict['mag_src_pri'][0]):
             return param_dict
         
     # These covers extreme cases that will never
@@ -7230,7 +7289,8 @@ def einstein_radius(M, d_L, d_S):
         Einstein radius, in mas
     """
     inv_dist_diff = (1 / (d_L*unit.kpc) - 1 / (d_S*unit.kpc))
-    return (unit.rad*(np.sqrt((4*const.G/(const.c**2)) * M*unit.M_sun * inv_dist_diff))).to('mas').value
+    thetaE = (unit.rad*(np.sqrt((4*const.G/(const.c**2)) * M*unit.M_sun * inv_dist_diff))).to('mas').value
+    return thetaE
 
 
 def calc_sph_motion(vx, vy, vz, r, b, l):
@@ -7359,11 +7419,11 @@ def calc_app_mag(r, M, E, f):
 
     Parameters
     ----------
-    M : float or array
-        Absolute magnitude of star
-
     r : float or array
         Distance of star from sun (in kpc)
+        
+    M : float or array
+        Absolute magnitude of star
 
     E : float or array
         Extinction law
